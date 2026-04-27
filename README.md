@@ -270,8 +270,6 @@ This path is wired and tested but is not the default. The CDP path has fewer dep
 - **Multi-step agentic loops drift.** For agent work that needs stronger reasoning, a hosted frontier model is a better fit. fenster's fit is local privacy-sensitive single-turn Q&A and structured-output tasks.
 - **A whole browser to run a 3B model.** Headless Chrome can crash, hang, or fail to download the model. fenster supervises and restarts, but the process footprint is browser-sized.
 
-For a smaller binary with full control of the model file, [llama.cpp](https://github.com/ggerganov/llama.cpp) is the alternative. fenster targets Chrome's bundled on-device model instead of shipping model weights.
-
 ## Status (today, April 2026)
 
 v0.0.1, **172 of 233 apfel integration tests pass** against fenster with the real Gemini Nano model running headless. All Go unit tests are green and race-clean.
