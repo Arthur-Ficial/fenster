@@ -13,6 +13,7 @@ package chrome
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -44,6 +45,24 @@ type LaunchOptions struct {
 }
 
 // Launch finds Chrome and spawns a controlled instance.
+//
+// Empirical Chrome 147+ findings (proven against this host):
+//   - HeadlessChrome does NOT expose window.LanguageModel (the Built-in AI
+//     APIs are gated for security/perf reasons in headless mode).
+//   - Headed Chrome on Stable 147 also does not expose it on a fresh
+//     profile, even with --enable-features=...
+//   - Chrome Canary 149 + headed + Local State pre-bootstrapped with
+//     enabled_labs_experiments + a real http://127.0.0.1 origin DOES
+//     expose LanguageModel as a function.
+//   - The on-device model component download requires a user gesture
+//     (Chrome's security gate). fenster needs to either have the user
+//     trigger it once, or bootstrap with a synthetic mouse click via CDP.
+//
+// Launch therefore:
+//   1. Writes Local State with enabled_labs_experiments BEFORE Chrome runs
+//   2. Defaults to HEADED unless the caller explicitly asks for headless
+//      (which is not useful for actual inference)
+//   3. Adds --remote-allow-origins=* so external CDP probes can connect
 func Launch(ctx context.Context, opts LaunchOptions) (*Browser, error) {
 	binary := opts.BinaryPath
 	if binary == "" {
@@ -58,6 +77,13 @@ func Launch(ctx context.Context, opts LaunchOptions) (*Browser, error) {
 	}
 	if err := os.MkdirAll(profile, 0o755); err != nil {
 		return nil, fmt.Errorf("chrome: profile dir: %w", err)
+	}
+	if err := bootstrapLocalState(profile); err != nil {
+		return nil, fmt.Errorf("chrome: bootstrap Local State: %w", err)
+	}
+	// Singleton lock cleanup (prior Chrome may have left this behind).
+	for _, name := range []string{"SingletonLock", "SingletonCookie", "SingletonSocket"} {
+		_ = os.Remove(filepath.Join(profile, name))
 	}
 
 	flags := buildFlags(profile, opts.Headless, opts.ExtraFlags)
@@ -74,6 +100,35 @@ func Launch(ctx context.Context, opts LaunchOptions) (*Browser, error) {
 		allocCtx: allocCtx, allocCancel: allocCancel,
 		browserCtx: browserCtx, browserCancel: browserCancel,
 	}, nil
+}
+
+// bootstrapLocalState writes the chrome://flags toggles fenster needs into
+// Local State BEFORE Chrome reads it. Idempotent: preserves any other
+// keys the file already had.
+func bootstrapLocalState(profileDir string) error {
+	path := filepath.Join(profileDir, "Local State")
+	var state map[string]any
+	if b, err := os.ReadFile(path); err == nil {
+		_ = json.Unmarshal(b, &state)
+	}
+	if state == nil {
+		state = map[string]any{}
+	}
+	browser, _ := state["browser"].(map[string]any)
+	if browser == nil {
+		browser = map[string]any{}
+	}
+	browser["enabled_labs_experiments"] = []string{
+		"prompt-api-for-gemini-nano@1",
+		"optimization-guide-on-device-model@2",
+		"prompt-api-for-gemini-nano-multimodal-input@1",
+	}
+	state["browser"] = browser
+	out, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, out, 0o644)
 }
 
 func buildFlags(profile string, headless bool, extra []string) []chromedp.ExecAllocatorOption {
@@ -101,13 +156,14 @@ func buildFlags(profile string, headless bool, extra []string) []chromedp.ExecAl
 		chromedp.NoDefaultBrowserCheck,
 		chromedp.Flag("enable-features", features),
 		chromedp.Flag("optimization-guide-on-device-model", "Enabled"),
+		chromedp.Flag("remote-allow-origins", "*"),
 		chromedp.Flag("hide-scrollbars", true),
 		chromedp.Flag("mute-audio", true),
 	)
+	// Headless intentionally omitted by default — the Built-in AI APIs
+	// are not exposed in HeadlessChrome on Chrome 147+.
 	if headless {
 		f = append(f, chromedp.Flag("headless", "new"))
-	} else {
-		f = append(f, chromedp.Flag("headless", false))
 	}
 	for _, raw := range extra {
 		// "--key=value" or "--key"
