@@ -149,10 +149,16 @@ func (b *ChromeCDPBackend) Chat(ctx context.Context, req *wire.ChatCompletionReq
 	if probe.Err != "" {
 		return Result{}, fmt.Errorf("chrome cdp: %s", probe.Err)
 	}
+	out := probe.Out
+	// JSON mode: strip markdown code fences when the client requested one.
+	// Apfel does the same host-side; the model often wraps JSON in ```json … ```.
+	if req.ResponseFormat != nil && req.ResponseFormat.IsJSONObject() {
+		out = stripJSONFence(out)
+	}
 	return Result{
-		Content:      probe.Out,
+		Content:      out,
 		FinishReason: wire.FinishStop,
-		Usage:        tokens.Usage{Prompt: tokens.Estimate(joinForUsage(req.Messages)), Completion: tokens.Estimate(probe.Out)},
+		Usage:        tokens.Usage{Prompt: tokens.Estimate(joinForUsage(req.Messages)), Completion: tokens.Estimate(out)},
 	}, nil
 }
 

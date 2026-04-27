@@ -284,9 +284,16 @@ type serveFlags struct {
 }
 
 func runServeModeFull(ctx context.Context, sf serveFlags) error {
-	// Zero-touch setup: extract extension, write NM manifest, spawn Chrome.
-	// Skip when attaching to an existing Chrome via FENSTER_CDP_URL.
-	autoChrome := os.Getenv("FENSTER_BACKEND") != "echo" &&
+	// Auto-launch Chrome ONLY when explicitly opted in (FENSTER_AUTO_CHROME=1).
+	// Reason: spawning Chrome per --serve instance breaks badly when
+	// pytest spawns multiple servers (each contends for the same
+	// ~/.fenster/profile, and Chrome's profile-lock pops a "Something
+	// went wrong opening your profile" dialog on the 2nd+ launches).
+	// Operators who want fenster to manage Chrome opt in via
+	// FENSTER_AUTO_CHROME=1; otherwise they attach via
+	// FENSTER_CDP_URL=http://127.0.0.1:9339 to a Chrome they already run.
+	autoChrome := os.Getenv("FENSTER_AUTO_CHROME") == "1" &&
+		os.Getenv("FENSTER_BACKEND") != "echo" &&
 		os.Getenv("FENSTER_BACKEND") != "null" &&
 		os.Getenv("FENSTER_NO_CHROME") == "" &&
 		os.Getenv("FENSTER_CDP_URL") == ""
