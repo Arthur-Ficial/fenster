@@ -5,9 +5,9 @@ package buildinfo
 
 var (
 	Version   = "0.0.1"
-	Commit    = "unknown"
+	Commit    = "188e2ee"
 	Branch    = "main"
-	Date      = "2026-04-27 11:06:59 UTC"
+	Date      = "2026-04-27 13:07:19 UTC"
 	GoVersion = "1.26.2"
 	OS        = "Darwin 26.3.1"
 )
