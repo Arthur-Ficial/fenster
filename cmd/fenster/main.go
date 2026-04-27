@@ -529,8 +529,11 @@ func chooseServeBackend(ctx context.Context, debug bool) (backend.Backend, error
 			fmt.Fprintln(os.Stderr, "fenster: ChromeCDPBackend init:", err)
 			return backend.EchoBackend{}, nil
 		}
+		// Pre-warm the sentinel session in the background so the first
+		// user request isn't cold. Fast AI is non-negotiable.
+		cb.PreWarm()
 		if debug {
-			fmt.Fprintln(os.Stderr, "fenster: ChromeCDPBackend attached to", cdp)
+			fmt.Fprintln(os.Stderr, "fenster: ChromeCDPBackend attached to", cdp, "(pre-warming sentinel)")
 		}
 		return cb, nil
 	}
