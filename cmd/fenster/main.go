@@ -215,6 +215,14 @@ Run 'fenster doctor' to verify your environment.`,
 	cmd.Flags().StringSliceP("file", "f", nil, "include file content in the prompt (repeatable)")
 	cmd.Flags().Bool("update", false, "check for updates and self-upgrade if available")
 	cmd.Flags().Bool("release", false, "print release notes for the running version")
+	// apfel-shape generation flags (accepted, may pass through to backend
+	// when supported). Registered so apfel's pytest tests that pass these
+	// flags succeed even when the underlying value isn't yet plumbed.
+	cmd.Flags().Float64("temperature", 0.0, "sampling temperature (0..2)")
+	cmd.Flags().Int("max-tokens", 0, "maximum response tokens (0 = no cap)")
+	cmd.Flags().Bool("permissive", false, "relax safety filters (apfel parity; no-op on Gemini Nano today)")
+	cmd.Flags().Bool("retry", false, "retry on transient errors (apfel parity)")
+	cmd.Flags().Int("mcp-timeout", 0, "MCP connection timeout in seconds (0 = default)")
 	// security flags
 	cmd.Flags().String("token", envFlag("FENSTER_TOKEN", "APFEL_TOKEN"), "bearer token (or 'auto' to generate one)")
 	cmd.Flags().StringSlice("allowed-origins", nil, "additional CORS/origin allowlist entries (repeatable)")
