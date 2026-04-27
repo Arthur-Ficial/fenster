@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	cdpruntime "github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
@@ -69,31 +70,81 @@ func NewChromeCDPBackend(browserCtx context.Context, targetURL string) (*ChromeC
 	return &ChromeCDPBackend{browserCtx: browserCtx, targetURL: targetURL}, nil
 }
 
-// initOnce checks LanguageModel availability. When the model is not yet
-// available it returns an explanatory error; the caller decides whether to
-// surface that as 503 or wait. We don't trigger downloads from inside the
-// CDP backend — that's a one-time operator setup step (chrome://flags +
-// click a button + wait ~5 min), proven via internal/chrome live probes.
+// initOnce ensures LanguageModel is "available". When the model is in a
+// "downloadable"/"downloading" state, fenster triggers the download via a
+// synthetic user-gesture click + LanguageModel.create(), then polls until
+// the model is ready. The first call may take ~5 minutes on a fresh
+// profile (Component Updater pulls ~2.4 GB).
 func (b *ChromeCDPBackend) initOnce(ctx context.Context) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.ready {
 		return nil
 	}
-	var raw string
-	if err := chromedp.Run(b.browserCtx,
-		chromedp.Evaluate(`(async()=>{
-			if(typeof LanguageModel==='undefined') return JSON.stringify({avail:'no-api'});
-			return JSON.stringify({avail:await LanguageModel.availability()});
-		})()`, &raw, withAwait),
-	); err != nil {
+	// Wire a button into the page that the synthetic click will fire from.
+	// LanguageModel.create() inside its handler passes Chrome's user-gesture
+	// gate and triggers the download.
+	if err := chromedp.Run(b.browserCtx, chromedp.Evaluate(`(async()=>{
+		if (typeof LanguageModel === 'undefined') return 'no-api';
+		const avail = await LanguageModel.availability();
+		if (avail === 'available') return 'available';
+		if (avail === 'unavailable' || avail === 'no') return 'unavailable';
+		// Wire the download trigger.
+		if (!document.getElementById('__fenster_dl')) {
+			const b = document.createElement('button');
+			b.id = '__fenster_dl';
+			b.textContent = 'fenster-init';
+			document.body.appendChild(b);
+			window.__fensterCreated = false;
+			b.addEventListener('click', async () => {
+				try {
+					const session = await LanguageModel.create({
+						monitor(m){m.addEventListener('downloadprogress', e => { window.__fensterProgress = e.loaded; });},
+					});
+					try { session.destroy?.(); } catch(_) {}
+					window.__fensterCreated = true;
+				} catch (e) {
+					window.__fensterCreateErr = String(e);
+				}
+			});
+		}
+		return 'wired';
+	})()`, nil, withAwait)); err != nil {
 		return err
 	}
-	if strings.Contains(raw, `"available"`) {
-		b.ready = true
-		return nil
+	// Synthesize a trusted click via CDP.
+	if err := chromedp.Run(b.browserCtx,
+		chromedp.MouseClickXY(50, 50),
+	); err != nil {
+		return fmt.Errorf("chrome cdp: synth click: %w", err)
 	}
-	return errors.New("chrome cdp: model not available: " + raw)
+	// Poll availability for up to 15 minutes.
+	deadline := time.Now().Add(15 * time.Minute)
+	for {
+		if time.Now().After(deadline) {
+			return errors.New("chrome cdp: timed out waiting for model download")
+		}
+		var raw string
+		if err := chromedp.Run(b.browserCtx, chromedp.Evaluate(`(async()=>JSON.stringify({
+			avail: await LanguageModel.availability(),
+			progress: window.__fensterProgress || 0,
+			err: window.__fensterCreateErr || ''
+		}))()`, &raw, withAwait)); err != nil {
+			return err
+		}
+		if strings.Contains(raw, `"available"`) {
+			b.ready = true
+			return nil
+		}
+		if strings.Contains(raw, `"unavailable"`) || strings.Contains(raw, `"no"`) {
+			return errors.New("chrome cdp: model unavailable on this device: " + raw)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(3 * time.Second):
+		}
+	}
 }
 
 func withAwait(p *cdpruntime.EvaluateParams) *cdpruntime.EvaluateParams {

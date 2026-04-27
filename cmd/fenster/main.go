@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -284,25 +283,29 @@ type serveFlags struct {
 }
 
 func runServeModeFull(ctx context.Context, sf serveFlags) error {
-	// Auto-launch Chrome ONLY when explicitly opted in (FENSTER_AUTO_CHROME=1).
-	// Reason: spawning Chrome per --serve instance breaks badly when
-	// pytest spawns multiple servers (each contends for the same
-	// ~/.fenster/profile, and Chrome's profile-lock pops a "Something
-	// went wrong opening your profile" dialog on the 2nd+ launches).
-	// Operators who want fenster to manage Chrome opt in via
-	// FENSTER_AUTO_CHROME=1; otherwise they attach via
-	// FENSTER_CDP_URL=http://127.0.0.1:9339 to a Chrome they already run.
-	autoChrome := os.Getenv("FENSTER_AUTO_CHROME") == "1" &&
-		os.Getenv("FENSTER_BACKEND") != "echo" &&
+	// fenster shares ONE Chrome instance across all --serve invocations.
+	// First fenster launches Chrome; subsequent fensters attach via the
+	// state file at ~/.fenster/run/chrome.json. pytest can spawn 20+
+	// servers without launching 20+ Chromes.
+	//
+	// Disable with FENSTER_NO_CHROME=1 or FENSTER_BACKEND=echo|null.
+	// Override discovery with FENSTER_CDP_URL=http://127.0.0.1:NNNN.
+	wantChrome := os.Getenv("FENSTER_BACKEND") != "echo" &&
 		os.Getenv("FENSTER_BACKEND") != "null" &&
 		os.Getenv("FENSTER_NO_CHROME") == "" &&
 		os.Getenv("FENSTER_CDP_URL") == ""
-	if autoChrome {
-		_, extID, err := ensureExtensionAndManifest()
+	if wantChrome {
+		cdp, launched, err := chrome.EnsureSharedChrome(ctx, chrome.LaunchOptions{})
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "fenster: extension/manifest setup failed:", err)
-		} else if sf.Debug {
-			fmt.Fprintln(os.Stderr, "fenster: extension ID =", extID)
+			fmt.Fprintln(os.Stderr, "fenster: shared Chrome unavailable:", err)
+			fmt.Fprintln(os.Stderr, "fenster: continuing with EchoBackend; set FENSTER_NO_CHROME=1 to silence")
+		} else {
+			if launched {
+				fmt.Fprintln(os.Stderr, "fenster: launched shared Chrome at", cdp)
+			} else if sf.Debug {
+				fmt.Fprintln(os.Stderr, "fenster: attaching to existing shared Chrome at", cdp)
+			}
+			_ = os.Setenv("FENSTER_CDP_URL", cdp)
 		}
 	}
 
@@ -311,17 +314,6 @@ func runServeModeFull(ctx context.Context, sf serveFlags) error {
 		return err
 	}
 	defer be.Close()
-
-	if autoChrome {
-		home, _ := os.UserHomeDir()
-		extDir := filepath.Join(home, ".fenster", "extension")
-		if br, err := autoLaunchChrome(ctx, extDir, sf.Debug); err != nil {
-			fmt.Fprintln(os.Stderr, "fenster: could not launch Chrome:", err)
-			fmt.Fprintln(os.Stderr, "fenster: server still up; install extension manually to enable real model")
-		} else {
-			defer br.Close()
-		}
-	}
 	host := sf.Host
 	if host == "" {
 		host = "127.0.0.1"

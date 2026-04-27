@@ -241,7 +241,11 @@ func LocateBinary() string {
 	return ""
 }
 
-// DefaultProfileDir returns ~/.fenster/profile (or the FENSTER_PROFILE override).
+// DefaultProfileDir returns the profile dir for the chosen Chrome binary.
+// Canary and Stable have incompatible profile formats; using one profile
+// for both produces "Something went wrong opening your profile" errors
+// when Chrome detects a profile-version mismatch. fenster keeps a separate
+// dir per binary identity.
 func DefaultProfileDir() string {
 	if v := os.Getenv("FENSTER_PROFILE"); v != "" {
 		return v
@@ -250,15 +254,33 @@ func DefaultProfileDir() string {
 	if err != nil {
 		return ".fenster"
 	}
-	return filepath.Join(home, ".fenster", "profile")
+	binary := os.Getenv("FENSTER_BROWSER")
+	if binary == "" {
+		binary = LocateBinary()
+	}
+	subdir := "profile"
+	switch {
+	case strings.Contains(binary, "Canary"):
+		subdir = "profile-canary"
+	case strings.Contains(binary, "Chromium"):
+		subdir = "profile-chromium"
+	case strings.Contains(binary, "Brave"):
+		subdir = "profile-brave"
+	case strings.Contains(binary, "Edge"):
+		subdir = "profile-edge"
+	}
+	return filepath.Join(home, ".fenster", subdir)
 }
 
 func osCandidates() []string {
 	switch runtime.GOOS {
 	case "darwin":
+		// Canary first — Chrome Stable does not expose the Built-in AI
+		// LanguageModel API on this Mac (verified empirically against
+		// Stable 147 vs Canary 149); Canary does.
 		return []string{
-			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
 			"/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
+			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
 			"/Applications/Chromium.app/Contents/MacOS/Chromium",
 			"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
 			"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
