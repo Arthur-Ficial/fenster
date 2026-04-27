@@ -290,7 +290,7 @@ func runServeModeFull(ctx context.Context, sf serveFlags) error {
 		}
 	}
 
-	be, err := chooseBackend(ctx, sf.Debug)
+	be, err := chooseServeBackend(ctx, sf.Debug)
 	if err != nil {
 		return err
 	}
@@ -377,30 +377,52 @@ func runChatMode(ctx context.Context) error {
 	return &exitError{code: exitNotImpl, msg: "chat mode not implemented"}
 }
 
-// chooseBackend picks the Backend for the runtime. Selection rules:
+// chooseBackend picks the Backend for the runtime.
 //
-//   - FENSTER_BACKEND=echo   -> EchoBackend (deterministic, test-friendly)
-//   - FENSTER_BACKEND=null   -> NullBackend (always reports unavailable)
-//   - default                -> ChromeBackend listening on the bridge socket;
-//                              falls back to Echo if the socket can't be opened
+// Selection (in order):
+//
+//	FENSTER_BACKEND=chrome     -> ChromeBackend (listens on bridge socket)
+//	FENSTER_BACKEND=null       -> NullBackend
+//	FENSTER_BACKEND=echo or "" -> EchoBackend (default, deterministic, no Chrome)
+//
+// The default is EchoBackend so the UNIX tool path works out of the box.
+// `--serve` enables ChromeBackend automatically (see runServeModeFull).
 func chooseBackend(ctx context.Context, debug bool) (backend.Backend, error) {
 	_ = ctx
 	switch os.Getenv("FENSTER_BACKEND") {
-	case "echo":
+	case "chrome":
+		cb, err := backend.NewChromeBackend(defaultBridgeSock())
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "fenster: cannot start ChromeBackend:", err)
+			return backend.EchoBackend{}, nil
+		}
 		if debug {
-			fmt.Fprintln(os.Stderr, "fenster: using EchoBackend (FENSTER_BACKEND=echo)")
+			fmt.Fprintln(os.Stderr, "fenster: ChromeBackend listening at", defaultBridgeSock())
+		}
+		return cb, nil
+	case "null":
+		return backend.NullBackend{}, nil
+	default:
+		if debug {
+			fmt.Fprintln(os.Stderr, "fenster: using EchoBackend (set FENSTER_BACKEND=chrome for real Gemini Nano)")
 		}
 		return backend.EchoBackend{}, nil
-	case "null":
-		if debug {
-			fmt.Fprintln(os.Stderr, "fenster: using NullBackend (FENSTER_BACKEND=null)")
-		}
+	}
+}
+
+// chooseServeBackend is the serve-mode variant: prefer Chrome, fall back to Echo.
+func chooseServeBackend(ctx context.Context, debug bool) (backend.Backend, error) {
+	_ = ctx
+	if os.Getenv("FENSTER_BACKEND") == "echo" {
+		return backend.EchoBackend{}, nil
+	}
+	if os.Getenv("FENSTER_BACKEND") == "null" {
 		return backend.NullBackend{}, nil
 	}
 	cb, err := backend.NewChromeBackend(defaultBridgeSock())
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "fenster: cannot start ChromeBackend:", err)
-		fmt.Fprintln(os.Stderr, "fenster: falling back to EchoBackend (set FENSTER_BACKEND=echo to silence this)")
+		fmt.Fprintln(os.Stderr, "fenster: ChromeBackend failed:", err)
+		fmt.Fprintln(os.Stderr, "fenster: falling back to EchoBackend (set FENSTER_BACKEND=echo to silence)")
 		return backend.EchoBackend{}, nil
 	}
 	if debug {
