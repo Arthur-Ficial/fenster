@@ -717,7 +717,7 @@ def test_release_shows_version_from_dotfile():
 
 def test_release_shows_build_info_from_generated_file():
     """--release must display all fields from the auto-generated BuildInfo.swift."""
-    build_info = (ROOT / "Sources" / "BuildInfo.swift").read_text()
+    build_info = (ROOT / "internal" / "buildinfo" / "buildinfo.go").read_text()
     result = run_cli(["--release"])
     output = result.stdout
 

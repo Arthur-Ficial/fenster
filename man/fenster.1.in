@@ -1,4 +1,4 @@
-.TH FENSTER 1 "April 2026" "fenster @VERSION@" "User Commands"
+.TH FENSTER 1 2026-04-27 "fenster @VERSION@" "User Commands"
 .SH NAME
 fenster \- Chrome's on-device Gemini Nano, served as if it were OpenAI
 .SH SYNOPSIS
@@ -121,4 +121,5 @@ and \(>= 22 GB free disk for the Gemini Nano model.
 
 The fenster project page:
 .UR https://github.com/Arthur-Ficial/fenster
+project page
 .UE

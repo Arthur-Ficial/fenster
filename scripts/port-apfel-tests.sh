@@ -56,6 +56,10 @@ find "$DEST" -name "*.py" -type f -print0 | while IFS= read -r -d '' f; do
     -e 's|"apfel\.1"|"fenster.1"|g' \
     -e 's|"apfel v"|"fenster v"|g' \
     -e "s|'apfel v'|'fenster v'|g" \
+    -e 's|"man" / "apfel\.1\.in"|"man" / "fenster.1.in"|g' \
+    -e 's|man/apfel\.1\.in|man/fenster.1.in|g' \
+    -e 's|"Sources" / "BuildInfo\.swift"|"internal" / "buildinfo" / "buildinfo.go"|g' \
+    -e 's|"Sources" / "CLI" / "ExitCodes\.swift"|"cmd" / "fenster" / "main.go"|g' \
     "$f"
   rm -f "$f.bak"
 done

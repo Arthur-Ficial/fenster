@@ -1,7 +1,7 @@
 """
 apfel Integration Tests - Man page drift prevention.
 
-These tests keep `man/apfel.1.in` in lockstep with `apfel --help` and the
+These tests keep `man/fenster.1.in` in lockstep with `apfel --help` and the
 declared exit-code inventory. If the CLI grows or loses a flag / env var /
 exit code, one of these assertions will fail until the man page is updated.
 This is the core promise of the man-page automation - it cannot silently
@@ -21,10 +21,10 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BINARY = ROOT / "bin" / "fenster"
 MAN_PAGE = ROOT / ".build" / "release" / "fenster.1"
-MAN_SOURCE = ROOT / "man" / "apfel.1.in"
+MAN_SOURCE = ROOT / "man" / "fenster.1.in"
 VERSION_FILE = ROOT / ".version"
 MAIN_SWIFT = ROOT / "Sources" / "main.swift"
-EXIT_CODES_SWIFT = ROOT / "Sources" / "CLI" / "ExitCodes.swift"
+EXIT_CODES_SWIFT = ROOT / "cmd" / "fenster" / "main.go"
 
 FLAG_RE = re.compile(r"(--[a-z][a-z0-9-]+)")
 SHORT_FLAG_RE = re.compile(r"(?<![\w-])(-[a-z])(?=[ ,])")
@@ -152,7 +152,7 @@ def test_bidirectional_long_flag_coverage():
 
     assert not missing_in_man, (
         f"Flags in --help but missing from man page: {sorted(missing_in_man)}. "
-        "Update man/apfel.1.in to document them."
+        "Update man/fenster.1.in to document them."
     )
     assert not missing_in_help, (
         f"Flags in man page but missing from --help: {sorted(missing_in_help)}. "
