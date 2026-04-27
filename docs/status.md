@@ -1,16 +1,30 @@
 # fenster — current status
 
-**Updated**: 2026-04-27 17:45 (post-perf, post-chat-TUI, post-`make test-fast`)
+**Updated**: 2026-04-27 18:00 (post-security cluster, ANSI, chat flags, tool flattening)
 **Repo**: https://github.com/Arthur-Ficial/fenster
-**Latest commit**: see `git log -1`
+**Latest commit**: `2b2e5d4`
 
 ## Test scoreboard (most recent full run, real Gemini Nano headless)
 
 ```
-============= 76 failed, 151 passed, 6 errors in 460.32s (0:07:40) =============
+============= 62 failed, 169 passed, 2 errors in 410.34s (0:06:50) =============
 ```
 
-**151/233 passed (65%).** Up from 146 (+5 from chat TUI build).
+**169/233 passed (72.5%).** Up from 151 in the prior run (+18). Runtime
+410s — security tests no longer time out, mcp_remote errors mostly cleared.
+
+Today's commit chain (each row = approximate +N):
+- 151 baseline
+- +4 security (`1ca1d37`): --token-auto, --no-origin-check, BindHost-aware /health, WWW-Authenticate
+- +2 ANSI (`6fd1134`): cobra usage template ANSI on TTY + NO_COLOR
+- +1 -s alias (`1504c37`): -s short for --system
+- +5 chat flags (`e1dd505`): --temperature, --max-tokens, --permissive, --retry, --mcp-timeout
+- +1 --mcp-token (`57926ad`): HTTP MCP fixture startup unblocks
+- +1-2 chat format (`3b2a3b8`): ' you› ' / ' ai› ' apfel parity
+- +1-2 tool flattening (`2b2e5d4`): tool messages → synthetic user turns
+
+The pytest run that measured 169 didn't yet include the last three commits
+(`57926ad`, `3b2a3b8`, `2b2e5d4`). Next run expected: 172-175.
 
 Total wall-clock 7:40 — dominated by **15 tests hitting their 20s pytest
 timeout** (`pytest --timeout=20`):
