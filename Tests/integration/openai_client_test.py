@@ -22,11 +22,11 @@ client = openai.OpenAI(base_url=BASE_URL, api_key="ignored")
 # MARK: - Prerequisites
 
 def test_apple_intelligence_enabled():
-    """Apple Intelligence must be enabled for all tests to work."""
+    """Fenster Intelligence must be enabled for all tests to work."""
     resp = httpx.get(f"{BASE_URL.replace('/v1', '')}/health")
     data = resp.json()
     assert data["model_available"] is True, \
-        "Apple Intelligence is NOT enabled. Go to System Settings → Apple Intelligence & Siri → Turn on."
+        "Fenster Intelligence is NOT enabled. Go to System Settings → Fenster Intelligence & Siri → Turn on."
 
 
 def test_health_returns_fast_without_cold_start():
@@ -58,7 +58,7 @@ def test_health_supported_languages_populated():
 
     Regression guard for apfel-gui#4: pre-caching
     SystemLanguageModel.supportedLanguages at startup must actually
-    produce a non-empty list on a machine with Apple Intelligence
+    produce a non-empty list on a machine with Fenster Intelligence
     enabled. If the SDK starts returning an empty Set we want to
     notice immediately rather than silently shipping an empty list.
     """
@@ -67,7 +67,7 @@ def test_health_supported_languages_populated():
     langs = data.get("supported_languages", [])
     assert isinstance(langs, list)
     assert len(langs) > 0, (
-        "supported_languages is empty. Either Apple Intelligence is "
+        "supported_languages is empty. Either Fenster Intelligence is "
         "disabled or SystemLanguageModel.supportedLanguages changed."
     )
     assert "en" in langs, f"expected 'en' in supported_languages, got {langs}"

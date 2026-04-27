@@ -29,6 +29,7 @@ import (
 
 	"github.com/Arthur-Ficial/fenster/internal/backend"
 	"github.com/Arthur-Ficial/fenster/internal/buildinfo"
+	"github.com/Arthur-Ficial/fenster/internal/chat"
 	"github.com/Arthur-Ficial/fenster/internal/chrome"
 	"github.com/Arthur-Ficial/fenster/internal/doctor"
 	"github.com/Arthur-Ficial/fenster/internal/oneshot"
@@ -159,7 +160,7 @@ Run 'fenster doctor' to verify your environment.`,
 				})
 			}
 			if chat {
-				return runChatMode(ctx)
+				return runChatMode(ctx, resolveSystem(system, noSystem), jsonOut, quiet, debug)
 			}
 			// One-shot UNIX tool path.
 			prompt := strings.Join(args, " ")
@@ -445,10 +446,19 @@ func runServeModeFull(ctx context.Context, sf serveFlags) error {
 	}
 }
 
-func runChatMode(ctx context.Context) error {
-	_ = ctx
-	fmt.Fprintln(os.Stderr, "fenster --chat: chat TUI is M4")
-	return &exitError{code: exitNotImpl, msg: "chat mode not implemented"}
+func runChatMode(ctx context.Context, system string, jsonOut, quiet, debug bool) error {
+	be, err := chooseBackend(ctx, debug)
+	if err != nil {
+		return err
+	}
+	defer be.Close()
+	return chat.Run(ctx, chat.Options{
+		Backend: be,
+		System:  system,
+		JSON:    jsonOut,
+		Quiet:   quiet,
+		Debug:   debug,
+	})
 }
 
 // chooseBackend picks the Backend for the runtime.

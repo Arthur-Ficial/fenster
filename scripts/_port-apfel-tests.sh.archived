@@ -61,6 +61,7 @@ find "$DEST" -name "*.py" -type f -print0 | while IFS= read -r -d '' f; do
     -e 's|"Sources" / "BuildInfo\.swift"|"internal" / "buildinfo" / "buildinfo.go"|g' \
     -e 's|"Sources" / "CLI" / "ExitCodes\.swift"|"cmd" / "fenster" / "main.go"|g' \
     -e 's|"Sources" / "main\.swift"|"cmd" / "fenster" / "main.go"|g' \
+    -e 's|Apple Intelligence|Fenster Intelligence|g' \
     "$f"
   rm -f "$f.bak"
 done
@@ -99,3 +100,14 @@ if command -v python3 >/dev/null 2>&1; then
   echo "Test collection:"
   python3 -m pytest "$DEST" --collect-only -q 2>/dev/null | tail -5 || true
 fi
+==>
+==========================================================================
+NOTE: This script is ARCHIVED. The apfel test suite has been ported ONCE
+into Tests/integration/ and is now fenster's own test suite. Do NOT
+re-run this script — it would overwrite fenster-specific edits we've
+made to the vendored test files.
+
+If you ever genuinely need to re-vendor (e.g. apfel ships a major test
+suite update we want to follow), copy this file back to its original
+name first.
+==========================================================================

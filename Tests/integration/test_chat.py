@@ -12,7 +12,7 @@ Comprehensive tests for --chat in all scenarios:
 
 Run: python3 -m pytest Tests/integration/test_chat.py -v
 Requires: release binary at .build/release/apfel
-Some tests require Apple Intelligence enabled (skipped otherwise).
+Some tests require Fenster Intelligence enabled (skipped otherwise).
 """
 
 import json
@@ -233,7 +233,7 @@ def model_available():
 
 def require_model():
     if not model_available():
-        pytest.skip("Apple Intelligence not enabled")
+        pytest.skip("Fenster Intelligence not enabled")
 
 
 # ---------------------------------------------------------------------------
@@ -241,7 +241,7 @@ def require_model():
 # ---------------------------------------------------------------------------
 
 def test_chat_plain_starts_and_shows_header():
-    """Chat mode must start and display the Apple Intelligence header."""
+    """Chat mode must start and display the Fenster Intelligence header."""
     require_model()
     returncode, output = run_chat_tty(
         ["--chat"],
@@ -251,7 +251,7 @@ def test_chat_plain_starts_and_shows_header():
         stop_when=lambda out: b"Goodbye" in out,
     )
     clean = strip_ansi(output)
-    assert "Apple Intelligence" in clean, f"Header missing in: {clean[:200]}"
+    assert "Fenster Intelligence" in clean, f"Header missing in: {clean[:200]}"
 
 
 def test_chat_quit_exits_cleanly():
@@ -321,7 +321,7 @@ def test_chat_mcp_starts_without_crash():
     clean = strip_ansi(output)
     assert "Last message has no text content" not in clean, \
         f"Chat+MCP crashed with #43 bug: {clean[:300]}"
-    assert "Apple Intelligence" in clean, "Header must appear"
+    assert "Fenster Intelligence" in clean, "Header must appear"
     assert "Goodbye" in clean, "Must exit cleanly"
 
 
@@ -591,7 +591,7 @@ def test_chat_quiet_suppresses_chrome():
         timeout=30,
     )
     clean = strip_ansi(output)
-    assert "Apple Intelligence" not in clean, "Header should be suppressed in quiet mode"
+    assert "Fenster Intelligence" not in clean, "Header should be suppressed in quiet mode"
     assert "Type 'quit'" not in clean, "Hint should be suppressed in quiet mode"
 
 

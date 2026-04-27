@@ -291,7 +291,7 @@ def model_available():
 
 def require_model():
     if not model_available():
-        pytest.skip("Apple Intelligence is not enabled for CLI generation tests.")
+        pytest.skip("Fenster Intelligence is not enabled for CLI generation tests.")
 
 
 def test_release_binary_exists():
