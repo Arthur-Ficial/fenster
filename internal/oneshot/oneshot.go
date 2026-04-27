@@ -111,8 +111,23 @@ func runOnce(ctx context.Context, opts Options, req *wire.ChatCompletionRequest)
 		return mapBackendErr(err)
 	}
 	if opts.JSON {
-		resp := buildResponseEnvelope(res)
-		return writeJSON(opts.Stdout, resp)
+		// CLI -o json shape is flat {content, model, finish_reason, usage}
+		// (apfel convention; pytest cli_e2e tests assert payload["content"]).
+		// The HTTP /v1/chat/completions endpoint uses the OpenAI envelope.
+		flat := map[string]any{
+			"content":       res.Content,
+			"model":         wire.ModelID,
+			"finish_reason": orStop(res.FinishReason),
+			"usage": map[string]int{
+				"prompt_tokens":     res.Usage.Prompt,
+				"completion_tokens": res.Usage.Completion,
+				"total_tokens":      res.Usage.Total(),
+			},
+		}
+		if res.Refusal != "" {
+			flat["refusal"] = res.Refusal
+		}
+		return writeJSONNoNewline(opts.Stdout, flat)
 	}
 	if !opts.Quiet && res.Refusal != "" {
 		fmt.Fprintln(opts.Stderr, "fenster: refusal —", res.Refusal)
@@ -189,6 +204,17 @@ func writeJSON(w io.Writer, v any) error {
 		return err
 	}
 	_, err = w.Write([]byte("\n"))
+	return err
+}
+
+// writeJSONNoNewline emits the JSON payload without a trailing newline.
+// apfel's pytest test_json_output_no_trailing_newline asserts on this.
+func writeJSONNoNewline(w io.Writer, v any) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(b)
 	return err
 }
 

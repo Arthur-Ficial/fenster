@@ -55,12 +55,17 @@ func TestOneShot_RequiresPromptOrStdin(t *testing.T) {
 	}
 }
 
-func TestOneShot_JSON_EmitsEnvelope(t *testing.T) {
+func TestOneShot_JSON_EmitsFlatShape(t *testing.T) {
+	// CLI -o json emits a flat shape (not the OpenAI envelope). The HTTP
+	// /v1/chat/completions endpoint uses the envelope; the CLI uses flat.
 	out, _ := runShot(t, Options{Prompt: "hi", JSON: true})
-	for _, want := range []string{`"object":"chat.completion"`, `"model":"gemini-nano"`, `"finish_reason":"stop"`, `"usage"`} {
+	for _, want := range []string{`"content":`, `"model":"gemini-nano"`, `"finish_reason":"stop"`, `"usage":{`} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %s in JSON output: %s", want, out)
 		}
+	}
+	if strings.HasSuffix(out, "\n") {
+		t.Errorf("CLI -o json must not end with a trailing newline (apfel parity), got %q", out)
 	}
 }
 

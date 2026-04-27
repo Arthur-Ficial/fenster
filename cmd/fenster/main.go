@@ -36,13 +36,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Exit codes — keep stable; integration tests assert on them.
+// Exit codes — keep stable; apfel pytest asserts on them.
 const (
 	exitOK           = 0
 	exitGenericError = 1
-	exitNotImpl      = 2
+	exitInvalidArgs  = 2 // apfel convention; pytest asserts returncode == 2
 	exitDoctorFail   = 3
-	exitInvalidArgs  = 64 // sysexits EX_USAGE
+	exitNotImpl      = 64
 )
 
 // envFlag returns the first non-empty value among the given env names.
@@ -58,6 +58,12 @@ func envFlag(names ...string) string {
 }
 
 func main() {
+	// Pre-flag-parse: detect a bare trailing -f or --file with no value.
+	// cobra would otherwise emit "flag needs an argument" with exit 1.
+	if isBareFileFlag(os.Args[1:]) {
+		fmt.Fprintln(os.Stderr, "fenster: -f/--file requires a file path")
+		os.Exit(exitInvalidArgs)
+	}
 	if err := newRootCmd().Execute(); err != nil {
 		var exitErr *exitError
 		if errors.As(err, &exitErr) {
@@ -149,13 +155,23 @@ Run 'fenster doctor' to verify your environment.`,
 			}
 			// One-shot UNIX tool path.
 			prompt := strings.Join(args, " ")
+			files, _ := cmd.Flags().GetStringSlice("file")
+			fileBody, ferr := readFileFlags(files)
+			if ferr != nil {
+				return ferr
+			}
+			finalPrompt, perr := combinePromptAndFiles(fileBody, prompt)
+			if perr != nil && fileBody == "" && prompt == "" {
+				// Allow stdin-fed prompt.
+				finalPrompt = ""
+			}
 			be, err := chooseBackend(ctx, debug)
 			if err != nil {
 				return err
 			}
 			defer be.Close()
 			return oneshot.Run(ctx, oneshot.Options{
-				Prompt:  prompt,
+				Prompt:  finalPrompt,
 				System:  resolveSystem(system, noSystem),
 				JSON:    jsonOut,
 				Stream:  stream,
@@ -180,6 +196,7 @@ Run 'fenster doctor' to verify your environment.`,
 	cmd.Flags().BoolVar(&debug, "debug", false, "verbose debug logging")
 	cmd.Flags().StringVar(&system, "system", envFlag("FENSTER_SYSTEM_PROMPT", "APFEL_SYSTEM_PROMPT"), "system prompt")
 	cmd.Flags().BoolVar(&noSystem, "no-system-prompt", false, "disable the default system prompt")
+	cmd.Flags().StringSliceP("file", "f", nil, "include file content in the prompt (repeatable)")
 	// security flags
 	cmd.Flags().String("token", envFlag("FENSTER_TOKEN", "APFEL_TOKEN"), "bearer token (or 'auto' to generate one)")
 	cmd.Flags().StringSlice("allowed-origins", nil, "additional CORS/origin allowlist entries (repeatable)")
