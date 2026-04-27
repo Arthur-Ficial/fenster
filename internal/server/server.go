@@ -17,10 +17,13 @@ import (
 
 // Config configures NewMux.
 type Config struct {
-	Backend    backend.Backend
-	EnableCORS bool   // when false, OPTIONS still resolves but no ACAO is emitted
-	BearerToken string // optional; when non-empty, /v1/* requires Authorization: Bearer <token>
-	Debug      bool
+	Backend         backend.Backend
+	EnableCORS      bool     // when false, OPTIONS still resolves but no ACAO is emitted
+	BearerToken     string   // optional; when non-empty, /v1/* requires Authorization: Bearer <token>
+	AllowedOrigins  []string // origin allowlist; nil → DefaultOriginAllowlist
+	PublicHealth    bool     // when true, /health is reachable without token
+	Footgun         bool     // when true, disables origin and bearer checks (CORS preflight wide-open)
+	Debug           bool
 }
 
 // State is the shared, request-spanning state (active request gauge, etc.).
@@ -59,7 +62,10 @@ func NewMux(cfg Config) http.Handler {
 	mux.HandleFunc("OPTIONS /v1/models", handleCORS(cfg))
 	mux.HandleFunc("OPTIONS /health", handleCORS(cfg))
 
-	// Wrap in CORS-response middleware (adds ACAO/Vary on real responses
-	// when EnableCORS is set).
-	return withCORSResponse(cfg, mux)
+	// Middleware chain (innermost → outermost): mux → originCheck → bearerAuth → corsResponse.
+	var h http.Handler = mux
+	h = withBearerAuth(cfg, h)
+	h = withOriginCheck(cfg, h)
+	h = withCORSResponse(cfg, h)
+	return h
 }

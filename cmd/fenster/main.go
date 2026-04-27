@@ -110,6 +110,11 @@ Run 'fenster doctor' to verify your environment.`,
 			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer cancel()
 
+			// -o json maps to --json
+			if out, _ := cmd.Flags().GetString("output"); strings.EqualFold(out, "json") {
+				jsonOut = true
+			}
+
 			if showVer {
 				printVersion(jsonOut)
 				return nil
@@ -118,7 +123,23 @@ Run 'fenster doctor' to verify your environment.`,
 				return runDoctorMode(jsonOut)
 			}
 			if serve {
-				return runServeMode(ctx, port, mcp, debug)
+				host, _ := cmd.Flags().GetString("host")
+				token, _ := cmd.Flags().GetString("token")
+				origins, _ := cmd.Flags().GetStringSlice("allowed-origins")
+				corsOn, _ := cmd.Flags().GetBool("cors")
+				publicHealth, _ := cmd.Flags().GetBool("public-health")
+				footgun, _ := cmd.Flags().GetBool("footgun")
+				return runServeModeFull(ctx, serveFlags{
+					Port:           port,
+					Host:           host,
+					MCP:            mcp,
+					Debug:          debug,
+					Token:          token,
+					AllowedOrigins: origins,
+					EnableCORS:     corsOn,
+					PublicHealth:   publicHealth,
+					Footgun:        footgun,
+				})
 			}
 			if chat {
 				return runChatMode(ctx)
@@ -146,13 +167,21 @@ Run 'fenster doctor' to verify your environment.`,
 	cmd.Flags().BoolVar(&serve, "serve", false, "run the OpenAI-compatible HTTP server")
 	cmd.Flags().BoolVar(&chat, "chat", false, "interactive TUI chat")
 	cmd.Flags().IntVar(&port, "port", defaultPort(), "port for --serve mode (env: APFEL_PORT/FENSTER_PORT)")
+	cmd.Flags().String("host", envFlag("FENSTER_HOST", "APFEL_HOST"), "bind address for --serve (default 127.0.0.1)")
 	cmd.Flags().StringVar(&mcp, "mcp", envFlag("FENSTER_MCP", "APFEL_MCP"), "path to an MCP server script (used with --serve)")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "emit JSON envelope output")
+	cmd.Flags().StringP("output", "o", "", "output format (text|json)") // -o json alias for --json
 	cmd.Flags().BoolVar(&stream, "stream", false, "stream tokens to stdout")
-	cmd.Flags().BoolVar(&quiet, "quiet", false, "suppress non-essential output")
+	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress non-essential output")
 	cmd.Flags().BoolVar(&debug, "debug", false, "verbose debug logging")
 	cmd.Flags().StringVar(&system, "system", envFlag("FENSTER_SYSTEM_PROMPT", "APFEL_SYSTEM_PROMPT"), "system prompt")
 	cmd.Flags().BoolVar(&noSystem, "no-system-prompt", false, "disable the default system prompt")
+	// security flags
+	cmd.Flags().String("token", envFlag("FENSTER_TOKEN", "APFEL_TOKEN"), "bearer token (or 'auto' to generate one)")
+	cmd.Flags().StringSlice("allowed-origins", nil, "additional CORS/origin allowlist entries (repeatable)")
+	cmd.Flags().Bool("cors", envFlag("FENSTER_CORS", "APFEL_CORS") == "1", "enable CORS preflight responses")
+	cmd.Flags().Bool("public-health", false, "allow /health without bearer token (--token mode)")
+	cmd.Flags().Bool("footgun", false, "DANGER: disable origin and bearer checks")
 
 	cmd.AddCommand(newDoctorCmd())
 	cmd.AddCommand(newVersionCmd())
@@ -234,18 +263,34 @@ func runDoctorMode(jsonOut bool) error {
 }
 
 func runServeMode(ctx context.Context, port int, mcp string, debug bool) error {
+	return runServeModeFull(ctx, serveFlags{Port: port, MCP: mcp, Debug: debug})
+}
+
+type serveFlags struct {
+	Port           int
+	Host           string
+	MCP            string
+	Debug          bool
+	Token          string
+	AllowedOrigins []string
+	EnableCORS     bool
+	PublicHealth   bool
+	Footgun        bool
+}
+
+func runServeModeFull(ctx context.Context, sf serveFlags) error {
 	// Zero-touch setup: extract extension, write NM manifest, spawn Chrome.
 	autoChrome := os.Getenv("FENSTER_BACKEND") != "echo" && os.Getenv("FENSTER_BACKEND") != "null" && os.Getenv("FENSTER_NO_CHROME") == ""
 	if autoChrome {
 		_, extID, err := ensureExtensionAndManifest()
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "fenster: extension/manifest setup failed:", err)
-		} else if debug {
+		} else if sf.Debug {
 			fmt.Fprintln(os.Stderr, "fenster: extension ID =", extID)
 		}
 	}
 
-	be, err := chooseBackend(ctx, debug)
+	be, err := chooseBackend(ctx, sf.Debug)
 	if err != nil {
 		return err
 	}
@@ -254,25 +299,39 @@ func runServeMode(ctx context.Context, port int, mcp string, debug bool) error {
 	if autoChrome {
 		home, _ := os.UserHomeDir()
 		extDir := filepath.Join(home, ".fenster", "extension")
-		if br, err := autoLaunchChrome(ctx, extDir, debug); err != nil {
+		if br, err := autoLaunchChrome(ctx, extDir, sf.Debug); err != nil {
 			fmt.Fprintln(os.Stderr, "fenster: could not launch Chrome:", err)
 			fmt.Fprintln(os.Stderr, "fenster: server still up; install extension manually to enable real model")
 		} else {
 			defer br.Close()
 		}
 	}
-	addr := "127.0.0.1:" + strconv.Itoa(port)
-	if v := envFlag("FENSTER_HOST", "APFEL_HOST"); v != "" {
-		addr = v + ":" + strconv.Itoa(port)
+	host := sf.Host
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	addr := host + ":" + strconv.Itoa(sf.Port)
+	token := sf.Token
+	if token == "auto" {
+		token = autoToken()
+		if !sf.Debug {
+			fmt.Fprintf(os.Stderr, "fenster: auto-generated bearer token: %s\n", token)
+		}
 	}
 	cfg := server.Config{
-		Backend:    be,
-		EnableCORS: envFlag("FENSTER_CORS", "APFEL_CORS") == "1",
-		Debug:      debug,
+		Backend:        be,
+		EnableCORS:     sf.EnableCORS,
+		BearerToken:    token,
+		AllowedOrigins: sf.AllowedOrigins,
+		PublicHealth:   sf.PublicHealth,
+		Footgun:        sf.Footgun,
+		Debug:          sf.Debug,
 	}
-	if mcp != "" {
-		fmt.Fprintln(os.Stderr, "fenster: --mcp registered:", mcp, "(MCP host-side wiring is M4)")
+	if sf.MCP != "" {
+		fmt.Fprintln(os.Stderr, "fenster: --mcp registered:", sf.MCP, "(MCP host-side wiring is M4)")
 	}
+	_ = sf.Port
+	_ = sf.MCP
 	mux := server.NewMux(cfg)
 	srv := &http.Server{
 		Addr:              addr,
