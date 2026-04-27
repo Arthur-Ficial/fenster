@@ -223,6 +223,7 @@ Run 'fenster doctor' to verify your environment.`,
 	cmd.Flags().Bool("permissive", false, "relax safety filters (apfel parity; no-op on Gemini Nano today)")
 	cmd.Flags().Bool("retry", false, "retry on transient errors (apfel parity)")
 	cmd.Flags().Int("mcp-timeout", 0, "MCP connection timeout in seconds (0 = default)")
+	cmd.Flags().String("mcp-token", "", "bearer token for HTTP MCP server (--mcp <url>)")
 	// security flags
 	cmd.Flags().String("token", envFlag("FENSTER_TOKEN", "APFEL_TOKEN"), "bearer token (or 'auto' to generate one)")
 	cmd.Flags().StringSlice("allowed-origins", nil, "additional CORS/origin allowlist entries (repeatable)")
