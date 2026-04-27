@@ -24,7 +24,7 @@ import pytest
 
 BASE_URL = "http://localhost:11434"
 MCP_URL = "http://localhost:11435"
-MODEL = "apple-foundationmodel"
+MODEL = "gemini-nano"
 TIMEOUT = 60
 
 

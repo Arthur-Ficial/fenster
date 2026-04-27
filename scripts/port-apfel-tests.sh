@@ -36,16 +36,26 @@ rsync -a --delete \
   --exclude='.pytest_cache' \
   "$SRC/" "$DEST/"
 
-# Patch every test file: rewrite the apfel BINARY path to fenster's bin/.
-# Idempotent — re-running won't double-rewrite.
+# Patch every test file. Idempotent — re-running won't double-rewrite.
+#
+# Substitutions:
+#   1. BINARY path: .build/release/apfel  ->  bin/fenster
+#   2. Model identity: "apple-foundationmodel" -> "gemini-nano"
+#      (fenster wraps Chrome's Gemini Nano, not Apple FoundationModels.
+#       The wire format is identical; only the model identity differs.)
+#   3. Banner identity: "apfel " -> "fenster " in *expected log strings*
 find "$DEST" -name "*.py" -type f -print0 | while IFS= read -r -d '' f; do
-  if grep -q '\.build" / "release" / "apfel"' "$f"; then
-    sed -i.bak \
-      -e 's|ROOT / "\.build" / "release" / "apfel"|ROOT / "bin" / "fenster"|g' \
-      -e 's|".build/release/apfel"|"bin/fenster"|g' \
-      "$f"
-    rm -f "$f.bak"
-  fi
+  sed -i.bak \
+    -e 's|ROOT / "\.build" / "release" / "apfel"|ROOT / "bin" / "fenster"|g' \
+    -e 's|".build/release/apfel"|"bin/fenster"|g' \
+    -e 's|".build/release/apfel.1"|".build/release/fenster.1"|g' \
+    -e 's|"\.build/release/apfel\.1"|".build/release/fenster.1"|g' \
+    -e 's|"apple-foundationmodel"|"gemini-nano"|g' \
+    -e "s|'apple-foundationmodel'|'gemini-nano'|g" \
+    -e 's|/apfel\.1\b|/fenster.1|g' \
+    -e 's|"apfel\.1"|"fenster.1"|g' \
+    "$f"
+  rm -f "$f.bak"
 done
 
 CONFTEST="$DEST/conftest.py"

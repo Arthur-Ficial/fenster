@@ -26,7 +26,7 @@ import time
 
 BASE_URL = "http://localhost:11435"
 API_URL = f"{BASE_URL}/v1"
-MODEL = "apple-foundationmodel"
+MODEL = "gemini-nano"
 TIMEOUT = 60
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BINARY = ROOT / "bin" / "fenster"
@@ -543,7 +543,7 @@ def test_mcp_invalid_model_rejected():
     assert resp.status_code == 400
     data = resp.json()
     assert "does not exist" in data["error"]["message"]
-    assert "apple-foundationmodel" in data["error"]["message"]
+    assert "gemini-nano" in data["error"]["message"]
 
 
 def test_mcp_empty_messages_rejected():

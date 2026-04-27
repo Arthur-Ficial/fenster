@@ -20,7 +20,7 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BINARY = ROOT / "bin" / "fenster"
-MAN_PAGE = ROOT / ".build" / "release" / "apfel.1"
+MAN_PAGE = ROOT / ".build" / "release" / "fenster.1"
 MAN_SOURCE = ROOT / "man" / "apfel.1.in"
 VERSION_FILE = ROOT / ".version"
 MAIN_SWIFT = ROOT / "Sources" / "main.swift"

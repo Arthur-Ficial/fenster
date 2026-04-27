@@ -35,8 +35,8 @@ func TestHealth_200_HasModelAvailable(t *testing.T) {
 	if body["model_available"] != true {
 		t.Fatalf("expected model_available true, got %+v", body)
 	}
-	if body["model"] != "apple-foundationmodel" {
-		t.Fatalf("expected apfel-compat model id, got %v", body["model"])
+	if body["model"] != "gemini-nano" {
+		t.Fatalf("expected fenster model id gemini-nano, got %v", body["model"])
 	}
 }
 
@@ -52,14 +52,14 @@ func TestModels_HasOneEntry(t *testing.T) {
 	if body.Object != "list" || len(body.Data) != 1 {
 		t.Fatalf("expected list with one model, got %+v", body)
 	}
-	if body.Data[0]["id"] != "apple-foundationmodel" {
-		t.Fatalf("expected apple-foundationmodel id, got %v", body.Data[0]["id"])
+	if body.Data[0]["id"] != "gemini-nano" {
+		t.Fatalf("expected gemini-nano id, got %v", body.Data[0]["id"])
 	}
 }
 
 func TestChatCompletions_NonStreaming_200(t *testing.T) {
 	s := newTestServer(t, backend.EchoBackend{})
-	body := []byte(`{"model":"apple-foundationmodel","messages":[{"role":"user","content":"hello"}]}`)
+	body := []byte(`{"model":"gemini-nano","messages":[{"role":"user","content":"hello"}]}`)
 	resp, _ := http.Post(s.URL+"/v1/chat/completions", "application/json", bytes.NewReader(body))
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
@@ -69,7 +69,7 @@ func TestChatCompletions_NonStreaming_200(t *testing.T) {
 	raw, _ := io.ReadAll(resp.Body)
 	for _, want := range []string{
 		`"object":"chat.completion"`,
-		`"model":"apple-foundationmodel"`,
+		`"model":"gemini-nano"`,
 		`"finish_reason":"stop"`,
 		`"refusal":null`,
 		`"logprobs":null`,
@@ -84,7 +84,7 @@ func TestChatCompletions_NonStreaming_200(t *testing.T) {
 
 func TestChatCompletions_Streaming_EmitsSSEFrames(t *testing.T) {
 	s := newTestServer(t, backend.EchoBackend{})
-	body := []byte(`{"model":"apple-foundationmodel","stream":true,"messages":[{"role":"user","content":"hello world"}]}`)
+	body := []byte(`{"model":"gemini-nano","stream":true,"messages":[{"role":"user","content":"hello world"}]}`)
 	resp, _ := http.Post(s.URL+"/v1/chat/completions", "application/json", bytes.NewReader(body))
 	defer resp.Body.Close()
 	if got := resp.Header.Get("Content-Type"); !strings.HasPrefix(got, "text/event-stream") {
@@ -106,7 +106,7 @@ func TestChatCompletions_Streaming_EmitsSSEFrames(t *testing.T) {
 
 func TestChatCompletions_StreamUsage_OnlyWhenIncludeUsage(t *testing.T) {
 	s := newTestServer(t, backend.EchoBackend{})
-	body := []byte(`{"model":"apple-foundationmodel","stream":true,"stream_options":{"include_usage":true},"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"gemini-nano","stream":true,"stream_options":{"include_usage":true},"messages":[{"role":"user","content":"hi"}]}`)
 	resp, _ := http.Post(s.URL+"/v1/chat/completions", "application/json", bytes.NewReader(body))
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(resp.Body)
@@ -118,7 +118,7 @@ func TestChatCompletions_StreamUsage_OnlyWhenIncludeUsage(t *testing.T) {
 
 func TestChatCompletions_EmptyMessages_400(t *testing.T) {
 	s := newTestServer(t, backend.EchoBackend{})
-	body := []byte(`{"model":"apple-foundationmodel","messages":[]}`)
+	body := []byte(`{"model":"gemini-nano","messages":[]}`)
 	resp, _ := http.Post(s.URL+"/v1/chat/completions", "application/json", bytes.NewReader(body))
 	defer resp.Body.Close()
 	if resp.StatusCode != 400 {
@@ -140,7 +140,7 @@ func TestChatCompletions_EmptyMessages_400(t *testing.T) {
 
 func TestChatCompletions_LogprobsTrue_400(t *testing.T) {
 	s := newTestServer(t, backend.EchoBackend{})
-	body := []byte(`{"model":"apple-foundationmodel","logprobs":true,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"gemini-nano","logprobs":true,"messages":[{"role":"user","content":"hi"}]}`)
 	resp, _ := http.Post(s.URL+"/v1/chat/completions", "application/json", bytes.NewReader(body))
 	defer resp.Body.Close()
 	if resp.StatusCode != 400 {
@@ -150,7 +150,7 @@ func TestChatCompletions_LogprobsTrue_400(t *testing.T) {
 
 func TestChatCompletions_NTwo_400(t *testing.T) {
 	s := newTestServer(t, backend.EchoBackend{})
-	body := []byte(`{"model":"apple-foundationmodel","n":2,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"gemini-nano","n":2,"messages":[{"role":"user","content":"hi"}]}`)
 	resp, _ := http.Post(s.URL+"/v1/chat/completions", "application/json", bytes.NewReader(body))
 	defer resp.Body.Close()
 	if resp.StatusCode != 400 {

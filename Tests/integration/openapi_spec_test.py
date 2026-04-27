@@ -20,7 +20,7 @@ import httpx
 from jsonschema import validate, ValidationError
 
 BASE_URL = "http://localhost:11434"
-MODEL = "apple-foundationmodel"
+MODEL = "gemini-nano"
 
 
 # ============================================================================

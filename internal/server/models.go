@@ -14,11 +14,11 @@ func handleModels() http.HandlerFunc {
 				ID:                    wire.ModelID,
 				Object:                wire.ObjectModel,
 				Created:               1719792000,
-				OwnedBy:               "apple",
+				OwnedBy:               "google",
 				ContextWindow:         wire.ContextWindow,
 				SupportedParameters:   []string{"temperature", "max_tokens", "seed", "stream", "tools", "tool_choice", "response_format", "x_context_strategy", "x_context_max_turns", "x_context_output_reserve"},
 				UnsupportedParameters: []string{"logprobs", "n", "stop", "presence_penalty", "frequency_penalty"},
-				Notes:                 "Apple-compatible on-device model identity. fenster routes inference to Chrome's Prompt API (Gemini Nano) under the hood.",
+				Notes:                 "Chrome's on-device Gemini Nano via the Prompt API.",
 			}},
 		})
 	}

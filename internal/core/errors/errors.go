@@ -79,17 +79,17 @@ var (
 	ErrEmptyMessages = &Sentinel{InvalidRequest, 400,
 		"'messages' must contain at least one message"}
 	ErrImageContent = &Sentinel{InvalidRequest, 400,
-		"Image content is not supported by the Apple on-device model"}
+		"Image content is not supported by the Gemini Nano on-device model"}
 	ErrLogprobs = &Sentinel{InvalidRequest, 400,
-		"Parameter 'logprobs' is not supported by Apple's on-device model."}
+		"Parameter 'logprobs' is not supported by the Gemini Nano on-device model."}
 	ErrN = &Sentinel{InvalidRequest, 400,
-		"Parameter 'n' is not supported by Apple's on-device model. Only n=1 is allowed."}
+		"Parameter 'n' is not supported by the Gemini Nano on-device model. Only n=1 is allowed."}
 	ErrPresencePenalty = &Sentinel{InvalidRequest, 400,
-		"Parameter 'presence_penalty' is not supported by Apple's on-device model."}
+		"Parameter 'presence_penalty' is not supported by the Gemini Nano on-device model."}
 	ErrFrequencyPenalty = &Sentinel{InvalidRequest, 400,
-		"Parameter 'frequency_penalty' is not supported by Apple's on-device model."}
+		"Parameter 'frequency_penalty' is not supported by the Gemini Nano on-device model."}
 	ErrStop = &Sentinel{InvalidRequest, 400,
-		"Parameter 'stop' is not supported by Apple's on-device model."}
+		"Parameter 'stop' is not supported by the Gemini Nano on-device model."}
 	ErrInvalidJSON = &Sentinel{InvalidRequest, 400,
 		"Invalid JSON"}
 	ErrMaxTokensInvalid = &Sentinel{InvalidRequest, 400,

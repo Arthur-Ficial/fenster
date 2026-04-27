@@ -57,7 +57,7 @@ func TestOneShot_RequiresPromptOrStdin(t *testing.T) {
 
 func TestOneShot_JSON_EmitsEnvelope(t *testing.T) {
 	out, _ := runShot(t, Options{Prompt: "hi", JSON: true})
-	for _, want := range []string{`"object":"chat.completion"`, `"model":"apple-foundationmodel"`, `"finish_reason":"stop"`, `"usage"`} {
+	for _, want := range []string{`"object":"chat.completion"`, `"model":"gemini-nano"`, `"finish_reason":"stop"`, `"usage"`} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %s in JSON output: %s", want, out)
 		}

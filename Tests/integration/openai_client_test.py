@@ -14,7 +14,7 @@ import openai
 import httpx
 
 BASE_URL = "http://localhost:11434/v1"
-MODEL = "apple-foundationmodel"
+MODEL = "gemini-nano"
 
 client = openai.OpenAI(base_url=BASE_URL, api_key="ignored")
 

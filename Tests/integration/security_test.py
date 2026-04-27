@@ -186,7 +186,7 @@ def test_foreign_origin_rejected_on_chat():
     """Origin check applies to /v1/chat/completions."""
     resp = httpx.post(
         f"{BASE_URL}/v1/chat/completions",
-        json={"model": "apple-foundationmodel", "messages": [{"role": "user", "content": "hi"}]},
+        json={"model": "gemini-nano", "messages": [{"role": "user", "content": "hi"}]},
         headers={"Origin": "http://evil.com"},
         timeout=60
     )

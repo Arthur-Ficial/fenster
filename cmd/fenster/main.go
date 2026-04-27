@@ -122,6 +122,9 @@ Run 'fenster doctor' to verify your environment.`,
 			if runDoctor {
 				return runDoctorMode(jsonOut)
 			}
+			if mi, _ := cmd.Flags().GetBool("model-info"); mi {
+				return runModelInfo(ctx, jsonOut)
+			}
 			if serve {
 				host, _ := cmd.Flags().GetString("host")
 				token, _ := cmd.Flags().GetString("token")
@@ -164,6 +167,7 @@ Run 'fenster doctor' to verify your environment.`,
 
 	cmd.Flags().BoolVar(&showVer, "version", false, "print version and exit")
 	cmd.Flags().BoolVar(&runDoctor, "doctor", false, "run preconditions check")
+	cmd.Flags().Bool("model-info", false, "print model info (availability, languages, context window)")
 	cmd.Flags().BoolVar(&serve, "serve", false, "run the OpenAI-compatible HTTP server")
 	cmd.Flags().BoolVar(&chat, "chat", false, "interactive TUI chat")
 	cmd.Flags().IntVar(&port, "port", defaultPort(), "port for --serve mode (env: APFEL_PORT/FENSTER_PORT)")

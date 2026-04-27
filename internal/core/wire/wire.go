@@ -12,10 +12,9 @@ package wire
 import "encoding/json"
 
 // ModelID is the canonical model identifier exposed via /v1/models and
-// chat completions response.model. Apfel hardcodes "apple-foundationmodel"
-// in 16+ test assertions; fenster matches that ID for OpenAI-compat. The
-// underlying engine is Gemini Nano via the Chrome Prompt API.
-const ModelID = "apple-foundationmodel"
+// chat completions response.model. fenster wraps Chrome's Prompt API
+// (Gemini Nano), so the identifier reflects what is actually running.
+const ModelID = "gemini-nano"
 
 // ContextWindow advertised in /v1/models and /health.
 const ContextWindow = 4096

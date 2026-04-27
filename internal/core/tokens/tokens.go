@@ -1,11 +1,11 @@
-// Package tokens estimates token counts. Real engines (FoundationModels in
-// apfel, Gemini Nano via the Prompt API in fenster) report exact counts; this
-// package is the fallback when the engine doesn't expose a counter, and the
-// host-side estimator we use to populate the Usage block honestly.
+// Package tokens estimates token counts. The Gemini Nano Prompt API
+// reports exact counts via session.measureInputUsage() and chunk metadata;
+// this package is the host-side fallback for cases where the API doesn't
+// expose a counter, and is used to populate the Usage block honestly.
 //
-// The heuristic is conservative: ceil(len(s) / 4) for ASCII-ish text. Apfel's
-// pytest suite checks invariants (total = prompt+completion; longer prefix =>
-// more tokens), not exact values.
+// The heuristic is conservative: ceil(len(s) / 4) for ASCII-ish text. The
+// pytest suite checks invariants (total = prompt+completion; longer prefix
+// => more tokens), not exact values.
 package tokens
 
 import "unicode/utf8"

@@ -336,7 +336,7 @@ def test_quiet_json_prompt_output_is_machine_readable():
     )
     assert result.returncode == 0
     payload = json.loads(result.stdout)
-    assert payload["model"] == "apple-foundationmodel"
+    assert payload["model"] == "gemini-nano"
     assert payload["content"].strip()
     assert result.stderr == ""
 
@@ -350,7 +350,7 @@ def test_piped_stdin_json_output_is_machine_readable():
     )
     assert result.returncode == 0
     payload = json.loads(result.stdout)
-    assert payload["model"] == "apple-foundationmodel"
+    assert payload["model"] == "gemini-nano"
     assert payload["content"].strip()
     assert result.stderr == ""
 

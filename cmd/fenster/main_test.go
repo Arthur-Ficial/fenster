@@ -69,7 +69,7 @@ func TestServeFlag_RealServer(t *testing.T) {
 			}
 			var body map[string]any
 			_ = json.NewDecoder(resp.Body).Decode(&body)
-			if body["model"] != "apple-foundationmodel" {
+			if body["model"] != "gemini-nano" {
 				t.Fatalf("unexpected model %v", body["model"])
 			}
 			break

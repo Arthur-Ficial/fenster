@@ -25,7 +25,7 @@ BINARY = ROOT / "bin" / "fenster"
 HTTP_MCP_SERVER = ROOT / "mcp" / "http-test-server" / "server.py"
 STDIO_MCP_SERVER = ROOT / "mcp" / "calculator" / "server.py"
 
-MODEL = "apple-foundationmodel"
+MODEL = "gemini-nano"
 TIMEOUT = 90
 
 
