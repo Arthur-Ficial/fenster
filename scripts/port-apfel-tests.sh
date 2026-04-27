@@ -54,6 +54,8 @@ find "$DEST" -name "*.py" -type f -print0 | while IFS= read -r -d '' f; do
     -e "s|'apple-foundationmodel'|'gemini-nano'|g" \
     -e 's|/apfel\.1\b|/fenster.1|g' \
     -e 's|"apfel\.1"|"fenster.1"|g' \
+    -e 's|"apfel v"|"fenster v"|g' \
+    -e "s|'apfel v'|'fenster v'|g" \
     "$f"
   rm -f "$f.bak"
 done

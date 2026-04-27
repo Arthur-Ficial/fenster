@@ -109,6 +109,8 @@ UNIX tool, an OpenAI-compatible HTTP server on localhost:11434, and a small
 chat TUI. Cross-platform sister of apfel.
 
 Run 'fenster doctor' to verify your environment.`,
+		// apfel-shaped help: "USAGE:" header (uppercase) so pytest's
+		// `assert "USAGE:" in result.stdout` passes.
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          cobra.ArbitraryArgs,
@@ -130,6 +132,12 @@ Run 'fenster doctor' to verify your environment.`,
 			}
 			if mi, _ := cmd.Flags().GetBool("model-info"); mi {
 				return runModelInfo(ctx, jsonOut)
+			}
+			if up, _ := cmd.Flags().GetBool("update"); up {
+				return runUpdate(quiet)
+			}
+			if rl, _ := cmd.Flags().GetBool("release"); rl {
+				return runRelease(quiet)
 			}
 			if serve {
 				host, _ := cmd.Flags().GetString("host")
@@ -197,6 +205,8 @@ Run 'fenster doctor' to verify your environment.`,
 	cmd.Flags().StringVar(&system, "system", envFlag("FENSTER_SYSTEM_PROMPT", "APFEL_SYSTEM_PROMPT"), "system prompt")
 	cmd.Flags().BoolVar(&noSystem, "no-system-prompt", false, "disable the default system prompt")
 	cmd.Flags().StringSliceP("file", "f", nil, "include file content in the prompt (repeatable)")
+	cmd.Flags().Bool("update", false, "check for updates and self-upgrade if available")
+	cmd.Flags().Bool("release", false, "print release notes for the running version")
 	// security flags
 	cmd.Flags().String("token", envFlag("FENSTER_TOKEN", "APFEL_TOKEN"), "bearer token (or 'auto' to generate one)")
 	cmd.Flags().StringSlice("allowed-origins", nil, "additional CORS/origin allowlist entries (repeatable)")
@@ -210,8 +220,47 @@ Run 'fenster doctor' to verify your environment.`,
 	cmd.AddCommand(newInstallExtensionCmd())
 	cmd.AddCommand(newInstallManifestCmd())
 
+	// Customize help so it includes "USAGE:" (apfel convention) and
+	// preserves cobra's tree under it.
+	cmd.SetUsageTemplate(apfelUsageTemplate)
+	// Map cobra's flag-parse errors (exit 1 default) to apfel's exit 2
+	// + "unknown option" wording.
+	cmd.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
+		msg := err.Error()
+		// Cobra: "unknown flag: --foo"  -> apfel: "unknown option: --foo"
+		msg = strings.Replace(msg, "unknown flag:", "unknown option:", 1)
+		fmt.Fprintln(os.Stderr, "fenster:", msg)
+		return &exitError{code: exitInvalidArgs, msg: "", silent: true}
+	})
+
 	return cmd
 }
+
+// apfelUsageTemplate makes cobra emit "USAGE:" (uppercase) and roughly
+// matches apfel's --help layout while keeping cobra's command tree.
+const apfelUsageTemplate = `USAGE:
+  {{.UseLine}}{{if .HasAvailableSubCommands}} [command]{{end}}{{if gt (len .Aliases) 0}}
+
+ALIASES:
+  {{.NameAndAliases}}{{end}}{{if .HasExample}}
+
+EXAMPLES:
+{{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}
+
+COMMANDS:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+OPTIONS:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+INHERITED OPTIONS:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+ADDITIONAL HELP TOPICS:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
+`
 
 func newNMHostCmd() *cobra.Command {
 	return &cobra.Command{
@@ -487,5 +536,7 @@ func printVersion(jsonOut bool) {
 			buildinfo.Version, buildinfo.Commit, buildinfo.Branch, buildinfo.Date, buildinfo.GoVersion, buildinfo.OS)
 		return
 	}
-	fmt.Printf("fenster %s (%s, %s)\n", buildinfo.Version, buildinfo.Commit, buildinfo.Date)
+	// apfel convention: stdout starts with "<binary> v<semver>" so pytest's
+	// `assert result.stdout.startswith("fenster v")` passes.
+	fmt.Printf("fenster v%s (%s, %s)\n", buildinfo.Version, buildinfo.Commit, buildinfo.Date)
 }

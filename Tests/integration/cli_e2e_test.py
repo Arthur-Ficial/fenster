@@ -307,7 +307,7 @@ def test_help_exit_success():
 def test_version_exit_success():
     result = run_cli(["--version"])
     assert result.returncode == 0
-    assert result.stdout.startswith("apfel v")
+    assert result.stdout.startswith("fenster v")
 
 
 def test_invalid_flag_exit_code():
@@ -677,7 +677,7 @@ def test_update_flag_exits_success():
 def test_update_shows_version():
     """--update output should contain the current version."""
     result = run_cli(["--update"])
-    assert "apfel v" in result.stdout
+    assert "fenster v" in result.stdout
 
 
 def test_update_detects_install_method():
