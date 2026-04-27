@@ -147,6 +147,11 @@ Run 'fenster doctor' to verify your environment.`,
 				corsOn, _ := cmd.Flags().GetBool("cors")
 				publicHealth, _ := cmd.Flags().GetBool("public-health")
 				footgun, _ := cmd.Flags().GetBool("footgun")
+				noOrigin, _ := cmd.Flags().GetBool("no-origin-check")
+				tokenAuto, _ := cmd.Flags().GetBool("token-auto")
+				if tokenAuto {
+					token = "auto"
+				}
 				return runServeModeFull(ctx, serveFlags{
 					Port:           port,
 					Host:           host,
@@ -157,6 +162,7 @@ Run 'fenster doctor' to verify your environment.`,
 					EnableCORS:     corsOn,
 					PublicHealth:   publicHealth,
 					Footgun:        footgun,
+					NoOriginCheck:  noOrigin,
 				})
 			}
 			if chat {
@@ -214,6 +220,8 @@ Run 'fenster doctor' to verify your environment.`,
 	cmd.Flags().Bool("cors", envFlag("FENSTER_CORS", "APFEL_CORS") == "1", "enable CORS preflight responses")
 	cmd.Flags().Bool("public-health", false, "allow /health without bearer token (--token mode)")
 	cmd.Flags().Bool("footgun", false, "DANGER: disable origin and bearer checks")
+	cmd.Flags().Bool("no-origin-check", false, "disable origin allowlist (preserves bearer auth)")
+	cmd.Flags().Bool("token-auto", false, "auto-generate a bearer token and print to stderr")
 
 	cmd.AddCommand(newDoctorCmd())
 	cmd.AddCommand(newVersionCmd())
@@ -347,6 +355,7 @@ type serveFlags struct {
 	EnableCORS     bool
 	PublicHealth   bool
 	Footgun        bool
+	NoOriginCheck  bool
 }
 
 func runServeModeFull(ctx context.Context, sf serveFlags) error {
@@ -387,21 +396,23 @@ func runServeModeFull(ctx context.Context, sf serveFlags) error {
 	}
 	addr := host + ":" + strconv.Itoa(sf.Port)
 	token := sf.Token
+	autoTokenUsed := false
 	if token == "auto" {
-		token = autoToken()
-		if !sf.Debug {
-			fmt.Fprintf(os.Stderr, "fenster: auto-generated bearer token: %s\n", token)
-		}
+		token = autoTokenUUID() // UUID-shaped so security_test's regex `[0-9A-Fa-f-]{36}` matches
+		autoTokenUsed = true
 	}
 	cfg := server.Config{
 		Backend:        be,
 		EnableCORS:     sf.EnableCORS,
 		BearerToken:    token,
 		AllowedOrigins: sf.AllowedOrigins,
+		NoOriginCheck:  sf.NoOriginCheck,
 		PublicHealth:   sf.PublicHealth,
 		Footgun:        sf.Footgun,
+		BindHost:       host,
 		Debug:          sf.Debug,
 	}
+	_ = autoTokenUsed
 	if sf.MCP != "" {
 		fmt.Fprintln(os.Stderr, "fenster: --mcp registered:", sf.MCP, "(MCP host-side wiring is M4)")
 	}
@@ -425,6 +436,11 @@ func runServeModeFull(ctx context.Context, sf serveFlags) error {
 	}
 	fmt.Fprintf(os.Stderr, "fenster %s — listening on http://%s/v1\n", buildinfo.Version, addr)
 	fmt.Fprintf(os.Stderr, "  token:    %s\n", tokenStatus)
+	if autoTokenUsed {
+		// Operator opted into --token-auto; surface the generated secret to
+		// stderr so they can use it (security_test_token_auto_prints_generated_secret).
+		fmt.Fprintf(os.Stderr, "  token: %s\n", token)
+	}
 	fmt.Fprintf(os.Stderr, "  origin:   %s\n", originSummary(cfg.AllowedOrigins, cfg.Footgun))
 	fmt.Fprintf(os.Stderr, "  cors:     %t\n", cfg.EnableCORS)
 	if cfg.Debug {

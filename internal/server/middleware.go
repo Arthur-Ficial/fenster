@@ -10,6 +10,7 @@ import (
 // withOriginCheck rejects requests with foreign Origin headers.
 //
 // - Footgun mode: bypassed entirely.
+// - --no-origin-check: bypassed (caller takes responsibility).
 // - OPTIONS preflight: bypassed (CORS handler decides).
 // - No Origin header: allowed (matches apfel; works for curl/SDKs).
 // - Origin in allowlist: allowed.
@@ -23,7 +24,7 @@ func withOriginCheck(cfg Config, next http.Handler) http.Handler {
 		allowlist = append(append([]string{}, DefaultOriginAllowlist()...), allowlist...)
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if cfg.Footgun {
+		if cfg.Footgun || cfg.NoOriginCheck {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -53,7 +54,12 @@ func withBearerAuth(cfg Config, next http.Handler) http.Handler {
 			return
 		}
 		if r.URL.Path == "/health" {
-			if cfg.PublicHealth || isLoopbackAddr(r.RemoteAddr) {
+			// Two paths to bypass /health auth:
+			//   1. --public-health flag explicitly opts in
+			//   2. server is bound to loopback (the typical local dev setup)
+			// When the supervisor binds to 0.0.0.0 or a routable IP, /health
+			// requires auth — apfel parity (test_health_requires_auth_on_non_loopback).
+			if cfg.PublicHealth || isLoopbackBind(cfg.BindHost) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -61,12 +67,28 @@ func withBearerAuth(cfg Config, next http.Handler) http.Handler {
 		auth := r.Header.Get("Authorization")
 		const prefix = "Bearer "
 		if !strings.HasPrefix(auth, prefix) || strings.TrimPrefix(auth, prefix) != cfg.BearerToken {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="fenster"`)
+			// apfel emits exactly "Bearer" (no realm) so the wire shape is
+			// minimal and predictable for SDKs.
+			w.Header().Set("WWW-Authenticate", "Bearer")
 			writeError(w, "missing or invalid bearer token", cerr.Authentication)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// isLoopbackBind reports whether the supervisor's BindHost is loopback.
+// Empty / "127.0.0.1" / "localhost" / "::1" are loopback. "0.0.0.0" or
+// a routable IP are not.
+func isLoopbackBind(host string) bool {
+	if host == "" {
+		return true // default bind is loopback
+	}
+	switch host {
+	case "127.0.0.1", "::1", "localhost":
+		return true
+	}
+	return strings.HasPrefix(host, "127.")
 }
 
 // isLoopbackAddr reports whether the RemoteAddr is a loopback connection.

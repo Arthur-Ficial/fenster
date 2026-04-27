@@ -17,13 +17,15 @@ import (
 
 // Config configures NewMux.
 type Config struct {
-	Backend         backend.Backend
-	EnableCORS      bool     // when false, OPTIONS still resolves but no ACAO is emitted
-	BearerToken     string   // optional; when non-empty, /v1/* requires Authorization: Bearer <token>
-	AllowedOrigins  []string // origin allowlist; nil → DefaultOriginAllowlist
-	PublicHealth    bool     // when true, /health is reachable without token
-	Footgun         bool     // when true, disables origin and bearer checks (CORS preflight wide-open)
-	Debug           bool
+	Backend        backend.Backend
+	EnableCORS     bool     // when false, OPTIONS still resolves but no ACAO is emitted
+	BearerToken    string   // optional; when non-empty, /v1/* requires Authorization: Bearer <token>
+	AllowedOrigins []string // origin allowlist; nil → DefaultOriginAllowlist
+	NoOriginCheck  bool     // disable origin check (preserves bearer auth)
+	PublicHealth   bool     // when true, /health is reachable without token
+	Footgun        bool     // disables origin + bearer checks; CORS preflight wide-open
+	BindHost       string   // bind host; loopback bypasses /health auth automatically
+	Debug          bool
 }
 
 // State is the shared, request-spanning state (active request gauge, etc.).
