@@ -28,7 +28,7 @@ EXIT_CODES_SWIFT = ROOT / "cmd" / "fenster" / "main.go"
 
 FLAG_RE = re.compile(r"(--[a-z][a-z0-9-]+)")
 SHORT_FLAG_RE = re.compile(r"(?<![\w-])(-[a-z])(?=[ ,])")
-ENV_RE = re.compile(r"\b(APFEL_[A-Z0-9_]+|NO_COLOR)\b")
+ENV_RE = re.compile(r"\b(APFEL_[A-Z0-9_]+|FENSTER_[A-Z0-9_]+|NO_COLOR)\b")
 
 
 def _help_output() -> str:
@@ -180,17 +180,21 @@ def test_bidirectional_env_var_coverage():
 
 
 def test_bidirectional_exit_code_coverage():
-    """Every exit code declared in ApfelCLI must appear in the man page."""
-    # Constants live in Sources/CLI/ExitCodes.swift (testable); main.swift
-    # re-exposes them via `let exit...: Int32 = ApfelExitCodes.xxx` for local
-    # readability. Scrape the literal values from ExitCodes.swift.
+    """Every exit code declared in cmd/fenster/main.go must appear in the man page."""
+    # fenster declares exit codes as Go consts in cmd/fenster/main.go:
+    #   const (
+    #       exitOK           = 0
+    #       exitGenericError = 1
+    #       exitInvalidArgs  = 2
+    #       exitDoctorFail   = 3
+    #       exitNotImpl      = 64
+    #   )
     src = EXIT_CODES_SWIFT.read_text()
-    # e.g. `public static let guardrail: Int32 = 3`
-    declared = set(re.findall(r"public\s+static\s+let\s+\w+\s*:\s*Int32\s*=\s*(\d+)", src))
-    assert declared, "No exit codes found in Sources/CLI/ExitCodes.swift - pattern changed?"
+    declared = set(re.findall(r"\bexit[A-Za-z]+\s+=\s+(\d+)\b", src))
+    assert declared, "No exit codes found in cmd/fenster/main.go - pattern changed?"
 
     man_text = _man_page_text()
     for code in sorted(declared, key=int):
         assert f".B {code}\n" in man_text, (
-            f"Exit code {code} declared in ApfelExitCodes but not documented in man page"
+            f"Exit code {code} declared in fenster's main.go but not documented in man page"
         )

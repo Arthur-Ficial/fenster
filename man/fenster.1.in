@@ -82,10 +82,13 @@ Success.
 Generic error.
 .TP
 .B 2
-Feature not yet implemented at this milestone.
+Invalid arguments.
+.TP
+.B 3
+Doctor preconditions failed.
 .TP
 .B 64
-Invalid arguments (sysexits EX_USAGE).
+Feature not implemented yet (sysexits-style).
 
 .SH ENVIRONMENT
 .TP
