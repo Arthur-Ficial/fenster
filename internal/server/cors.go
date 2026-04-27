@@ -2,13 +2,16 @@ package server
 
 import "net/http"
 
-// handleCORS returns a 204 with the right ACAO/AC* headers when CORS is
-// enabled, or just 204 with no extra headers when it isn't (apfel default).
+// handleCORS returns a 204 preflight response. When --footgun is set,
+// preflight echoes ANY requested headers (the client gets to decide). When
+// --cors is set without footgun, preflight echoes Access-Control-Request-
+// Headers and lists standard methods. When neither is set, preflight is
+// still 204 but with no ACAO/AC-* headers (apfel default).
 func handleCORS(cfg Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if cfg.EnableCORS {
+		if cfg.EnableCORS || cfg.Footgun {
 			origin := r.Header.Get("Origin")
-			if origin == "" {
+			if origin == "" || cfg.Footgun {
 				origin = "*"
 			}
 			w.Header().Set("Access-Control-Allow-Origin", origin)
@@ -18,6 +21,8 @@ func handleCORS(cfg Config) http.HandlerFunc {
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 			if reqHdr := r.Header.Get("Access-Control-Request-Headers"); reqHdr != "" {
 				w.Header().Set("Access-Control-Allow-Headers", reqHdr)
+			} else if cfg.Footgun {
+				w.Header().Set("Access-Control-Allow-Headers", "*")
 			} else {
 				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 			}
