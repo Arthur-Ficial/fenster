@@ -30,6 +30,7 @@ import (
 
 	"github.com/Arthur-Ficial/fenster/internal/backend"
 	"github.com/Arthur-Ficial/fenster/internal/buildinfo"
+	"github.com/Arthur-Ficial/fenster/internal/chrome"
 	"github.com/Arthur-Ficial/fenster/internal/doctor"
 	"github.com/Arthur-Ficial/fenster/internal/oneshot"
 	"github.com/Arthur-Ficial/fenster/internal/server"
@@ -284,7 +285,11 @@ type serveFlags struct {
 
 func runServeModeFull(ctx context.Context, sf serveFlags) error {
 	// Zero-touch setup: extract extension, write NM manifest, spawn Chrome.
-	autoChrome := os.Getenv("FENSTER_BACKEND") != "echo" && os.Getenv("FENSTER_BACKEND") != "null" && os.Getenv("FENSTER_NO_CHROME") == ""
+	// Skip when attaching to an existing Chrome via FENSTER_CDP_URL.
+	autoChrome := os.Getenv("FENSTER_BACKEND") != "echo" &&
+		os.Getenv("FENSTER_BACKEND") != "null" &&
+		os.Getenv("FENSTER_NO_CHROME") == "" &&
+		os.Getenv("FENSTER_CDP_URL") == ""
 	if autoChrome {
 		_, extID, err := ensureExtensionAndManifest()
 		if err != nil {
@@ -414,25 +419,50 @@ func chooseBackend(ctx context.Context, debug bool) (backend.Backend, error) {
 	}
 }
 
-// chooseServeBackend is the serve-mode variant: prefer Chrome, fall back to Echo.
+// chooseServeBackend is the serve-mode variant. Selection (in order):
+//
+//	FENSTER_BACKEND=echo                        -> EchoBackend
+//	FENSTER_BACKEND=null                        -> NullBackend
+//	FENSTER_CDP_URL=http://127.0.0.1:NNNN       -> ChromeCDPBackend (attach)
+//	default                                     -> EchoBackend (safe)
+//
+// FENSTER_CDP_URL is the operator's hook to point fenster at an already-
+// running Chrome (with the Prompt API flags enabled and the model
+// downloaded). This is the production path while Canary auto-launch is
+// being polished.
 func chooseServeBackend(ctx context.Context, debug bool) (backend.Backend, error) {
-	_ = ctx
-	if os.Getenv("FENSTER_BACKEND") == "echo" {
+	switch os.Getenv("FENSTER_BACKEND") {
+	case "echo":
 		return backend.EchoBackend{}, nil
-	}
-	if os.Getenv("FENSTER_BACKEND") == "null" {
+	case "null":
 		return backend.NullBackend{}, nil
 	}
-	cb, err := backend.NewChromeBackend(defaultBridgeSock())
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "fenster: ChromeBackend failed:", err)
-		fmt.Fprintln(os.Stderr, "fenster: falling back to EchoBackend (set FENSTER_BACKEND=echo to silence)")
-		return backend.EchoBackend{}, nil
+	if cdp := os.Getenv("FENSTER_CDP_URL"); cdp != "" {
+		br, err := chrome.Attach(ctx, cdp)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "fenster: cannot attach to CDP at", cdp, ":", err)
+			return backend.EchoBackend{}, nil
+		}
+		// Default the CDP target to fenster's own HTTP server's GET /
+		// page — Built-in AI APIs are only exposed on real http:// origins.
+		target := os.Getenv("FENSTER_CDP_TARGET")
+		if target == "" {
+			target = fmt.Sprintf("http://127.0.0.1:%d/", defaultPort())
+		}
+		cb, err := backend.NewChromeCDPBackend(br.BrowserCtx(), target)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "fenster: ChromeCDPBackend init:", err)
+			return backend.EchoBackend{}, nil
+		}
+		if debug {
+			fmt.Fprintln(os.Stderr, "fenster: ChromeCDPBackend attached to", cdp)
+		}
+		return cb, nil
 	}
 	if debug {
-		fmt.Fprintln(os.Stderr, "fenster: ChromeBackend listening at", defaultBridgeSock())
+		fmt.Fprintln(os.Stderr, "fenster: defaulting to EchoBackend (set FENSTER_CDP_URL to attach to Chrome)")
 	}
-	return cb, nil
+	return backend.EchoBackend{}, nil
 }
 
 func printVersion(jsonOut bool) {

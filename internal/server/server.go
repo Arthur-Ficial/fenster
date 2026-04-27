@@ -49,6 +49,7 @@ func NewMux(cfg Config) http.Handler {
 	state := &State{}
 	mux := http.NewServeMux()
 
+	mux.HandleFunc("GET /{$}", handleRoot()) // exact-match `/` only
 	mux.HandleFunc("GET /health", handleHealth(cfg, state))
 	mux.HandleFunc("GET /v1/models", handleModels())
 	mux.HandleFunc("POST /v1/chat/completions", handleChat(cfg, state))

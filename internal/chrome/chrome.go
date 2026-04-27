@@ -204,6 +204,27 @@ func awaitPromise(p *cdpruntime.EvaluateParams) *cdpruntime.EvaluateParams {
 	return p.WithAwaitPromise(true)
 }
 
+// Attach connects to an already-running Chrome instance via its remote
+// debugging URL (e.g. "http://127.0.0.1:9339"). This is the simplest path
+// for users who already have Canary running with the right flags.
+func Attach(ctx context.Context, debugURL string) (*Browser, error) {
+	allocCtx, allocCancel := chromedp.NewRemoteAllocator(ctx, debugURL)
+	browserCtx, browserCancel := chromedp.NewContext(allocCtx)
+	if err := chromedp.Run(browserCtx); err != nil {
+		browserCancel()
+		allocCancel()
+		return nil, fmt.Errorf("chrome: attach %s: %w", debugURL, err)
+	}
+	return &Browser{
+		allocCtx: allocCtx, allocCancel: allocCancel,
+		browserCtx: browserCtx, browserCancel: browserCancel,
+	}, nil
+}
+
+// BrowserCtx exposes the underlying chromedp context so callers (e.g.
+// internal/backend/chrome_cdp) can run their own evals.
+func (b *Browser) BrowserCtx() context.Context { return b.browserCtx }
+
 // LocateBinary returns the absolute path to a Chrome/Chromium binary,
 // honouring FENSTER_BROWSER and falling back to OS-default install paths.
 func LocateBinary() string {
