@@ -36,18 +36,23 @@ rsync -a --delete \
   --exclude='.pytest_cache' \
   "$SRC/" "$DEST/"
 
-# Patch conftest.py for fenster.
+# Patch every test file: rewrite the apfel BINARY path to fenster's bin/.
+# Idempotent — re-running won't double-rewrite.
+find "$DEST" -name "*.py" -type f -print0 | while IFS= read -r -d '' f; do
+  if grep -q '\.build" / "release" / "apfel"' "$f"; then
+    sed -i.bak \
+      -e 's|ROOT / "\.build" / "release" / "apfel"|ROOT / "bin" / "fenster"|g' \
+      -e 's|".build/release/apfel"|"bin/fenster"|g' \
+      "$f"
+    rm -f "$f.bak"
+  fi
+done
+
 CONFTEST="$DEST/conftest.py"
 if [[ ! -f "$CONFTEST" ]]; then
   echo "error: $CONFTEST missing after rsync" >&2
   exit 1
 fi
-
-# 1. Point BINARY at fenster's bin/ output.
-sed -i.bak \
-  -e 's|BINARY = ROOT / ".build" / "release" / "apfel"|BINARY = ROOT / "bin" / "fenster"|' \
-  "$CONFTEST"
-rm -f "$CONFTEST.bak"
 
 # 2. Add collect_ignore for apfel-specific tests if not already present.
 if ! grep -q '^collect_ignore' "$CONFTEST"; then

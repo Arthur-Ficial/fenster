@@ -29,7 +29,7 @@ API_URL = f"{BASE_URL}/v1"
 MODEL = "apple-foundationmodel"
 TIMEOUT = 60
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-BINARY = ROOT / ".build" / "release" / "apfel"
+BINARY = ROOT / "bin" / "fenster"
 FIXTURES = ROOT / "Tests" / "integration" / "fixtures"
 
 

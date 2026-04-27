@@ -30,7 +30,7 @@ import pytest
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-BINARY = ROOT / ".build" / "release" / "apfel"
+BINARY = ROOT / "bin" / "fenster"
 MCP_SERVER = ROOT / "mcp" / "calculator" / "server.py"
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 

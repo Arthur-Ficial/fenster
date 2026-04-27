@@ -21,7 +21,7 @@ import httpx
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-BINARY = ROOT / ".build" / "release" / "apfel"
+BINARY = ROOT / "bin" / "fenster"
 HTTP_MCP_SERVER = ROOT / "mcp" / "http-test-server" / "server.py"
 STDIO_MCP_SERVER = ROOT / "mcp" / "calculator" / "server.py"
 

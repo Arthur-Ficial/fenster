@@ -22,7 +22,7 @@ import pytest
 import httpx
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-BINARY = ROOT / ".build" / "release" / "apfel"
+BINARY = ROOT / "bin" / "fenster"
 BASE_URL = "http://localhost:11434"
 
 
