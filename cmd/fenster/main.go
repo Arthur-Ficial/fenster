@@ -210,7 +210,7 @@ Run 'fenster doctor' to verify your environment.`,
 	cmd.Flags().BoolVar(&stream, "stream", false, "stream tokens to stdout")
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress non-essential output")
 	cmd.Flags().BoolVar(&debug, "debug", false, "verbose debug logging")
-	cmd.Flags().StringVar(&system, "system", envFlag("FENSTER_SYSTEM_PROMPT", "APFEL_SYSTEM_PROMPT"), "system prompt")
+	cmd.Flags().StringVarP(&system, "system", "s", envFlag("FENSTER_SYSTEM_PROMPT", "APFEL_SYSTEM_PROMPT"), "system prompt")
 	cmd.Flags().BoolVar(&noSystem, "no-system-prompt", false, "disable the default system prompt")
 	cmd.Flags().StringSliceP("file", "f", nil, "include file content in the prompt (repeatable)")
 	cmd.Flags().Bool("update", false, "check for updates and self-upgrade if available")
