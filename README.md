@@ -1,6 +1,6 @@
 # fenster
 
-### Run Chrome's local Gemini Nano on every computer - via a Go, Chrome, extension bridge.
+### Run Chrome's local Gemini Nano through a Go bridge.
 
 [![Version 0.0.1](https://img.shields.io/badge/version-0.0.1-blue)](https://github.com/Arthur-Ficial/fenster)
 [![Go 1.22+](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white)](https://golang.org)
@@ -10,14 +10,14 @@
 [![Apfel-compat](https://img.shields.io/badge/wire--format-apfel--compatible-orange)](https://github.com/Arthur-Ficial/apfel)
 [![#agentswelcome](https://img.shields.io/badge/%23agentswelcome-PRs%20welcome-0066cc?style=for-the-badge&labelColor=0d1117&logo=probot&logoColor=white)](#contributing)
 
-Chrome ships a built-in LLM ([Gemini Nano](https://developer.chrome.com/docs/ai/prompt-api), about 3B parameters, GPU-accelerated). It is gated behind an Origin Trial and a `window.LanguageModel` JS API that Google really wants you to call from a webpage. `fenster` does not. It spawns an invisible headless Chrome Canary, drives it over CDP, fakes a user gesture so the model-download gate opens, and exposes the result as a UNIX tool and an OpenAI-compatible HTTP server on `localhost:11434`. 100% on-device. No API keys. No cloud. No telemetry.
+Chrome ships a built-in LLM ([Gemini Nano](https://developer.chrome.com/docs/ai/prompt-api), about 3B parameters, GPU-accelerated). It is gated behind an Origin Trial and a `window.LanguageModel` JS API exposed to pages. `fenster` starts headless Chrome Canary, drives it over CDP, sets `userGesture:true` for the model-download gate, and exposes the result as a UNIX tool and an OpenAI-compatible HTTP server on `localhost:11434`. Inference stays on-device and does not require an API key.
 
 | Mode | Command | What you get |
 |------|---------|--------------|
 | UNIX tool | `fenster "prompt"` / `echo "text" \| fenster` | Pipe-friendly answers, file attachments, JSON output, exit codes |
 | OpenAI-compatible server | `fenster --serve` | Drop-in local `http://localhost:11434/v1` backend for OpenAI SDKs |
 
-`fenster --chat` is an interactive REPL (byproduct, useful for kicking the tires).
+`fenster --chat` is an interactive REPL for testing prompts.
 
 Cross-platform sister of [apfel](https://github.com/Arthur-Ficial/apfel) (macOS-only, Apple Intelligence). Same wire format. Clients written for one work against the other.
 
@@ -35,7 +35,7 @@ CLI (UNIX) ───> │  ┌────────────────�
                 │  │ oneshot / chat   │                 │ spawn (one shared)
                 │  │ stdin / -f files │                 │ across N processes
                 │  └──────────────────┘                 v                  │
-                └────────────────────────────────────────────────────────-─┘
+                └─────────────────────────────────────────────────────────┘
                                                         │
                                                         v
                 ┌─────────────────────────────────────────────────────────┐
@@ -88,7 +88,7 @@ brew install --cask google-chrome@canary    # the Built-in AI Origin Trial requi
 fenster doctor                              # verify your environment, tells you exactly what is missing
 ```
 
-`fenster doctor` is honest about what is missing and what to do about it. It checks Chrome channel, GPU, disk, profile bootstrap state, and whether the model is downloaded.
+`fenster doctor` reports what is missing and what to do about it. It checks Chrome channel, GPU, disk, profile bootstrap state, and whether the model is downloaded.
 
 ## Quick Start
 
@@ -199,8 +199,8 @@ internal/server (stdlib net/http 1.22 patterns, no router dep)
   ├─ /health                    ── liveness (loopback by default; --public-health to flip)
   ├─ /v1/models                 ── { "gemini-nano": ... }
   ├─ /v1/chat/completions       ── stream + non-stream, OpenAI envelope
-  ├─ /v1/completions            ── honest 501
-  ├─ /v1/embeddings             ── honest 501
+  ├─ /v1/completions            ── 501
+  ├─ /v1/embeddings             ── 501
   └─ middleware: bearer auth, origin check, CORS, request validation
         │
         v
@@ -241,40 +241,38 @@ internal/bridge ── Unix-socket multiplex to fenster supervisor
 internal/backend.ChromeBackend (alternative to ChromeCDPBackend)
 ```
 
-This path is wired and tested but is not the default. The CDP path proved easier to make robust (no per-OS NM manifest installer dance, no extension ID drift, no Chrome Web Store gymnastics). The extension is kept because it is the more "Chrome-blessed" architecture and because some locked-down enterprise Chrome builds will refuse `Runtime.evaluate {userGesture:true}` while still permitting an installed extension.
+This path is wired and tested but is not the default. The CDP path has fewer deployment requirements: no per-OS Native Messaging manifest install step, no extension ID drift, and no Chrome Web Store packaging. The extension remains available for environments where `Runtime.evaluate {userGesture:true}` is blocked but an installed extension is permitted.
 
 ## Pros and cons of this architecture
 
-Honest. Read both columns before you decide it is the right tool.
-
 ### Pros
 
-- **Free, on-device, no API key.** Gemini Nano runs locally on hardware Google already shipped you. No tokens metered, no rate limits, no privacy theatre.
-- **OpenAI wire-format compatible.** Drop-in for `openai-python`, `openai-node`, LangChain, anything that takes a `base_url`. Same envelope as apfel - ports of one work against the other unmodified.
-- **Single static Go binary.** `go install` and you are done. No Python venv, no Node, no Docker. Cross-compiles to darwin-arm64, darwin-amd64, linux-amd64, linux-arm64, windows-amd64.
-- **Invisible by default.** `--headless=new` plus zero AppKit-window plus no Dock icon. The user does not know Chrome is running. `FENSTER_CHROME_HEADED=1` surfaces it for debugging.
-- **One shared Chrome per machine.** Lockfile-based supervisor means you can run twenty `fenster --serve` processes and only one Chrome is up. No dialog floods.
-- **Fast warm path.** Sentinel session reuse plus pre-warm at server boot brings the first-token latency from ~23s (cold `LanguageModel.create()`) down to ~2s on subsequent prompts.
-- **GPU acceleration for free.** Metal on macOS, DirectML on Windows, Vulkan on Linux - Chrome handles all of it. No CUDA, no ROCm, no driver hell.
-- **Honest about limits.** `fenster doctor` will tell you exactly what is missing. 501 responses for `/v1/embeddings` and legacy completions, not silent stubs.
-- **Hackable.** ~10k LOC of stdlib-first Go, no router dep, no testify, no DI framework. The whole thing fits in your head.
+- **Free, on-device, no API key.** Gemini Nano runs locally on hardware that already shipped with Chrome. No tokens metered, no rate limits, no telemetry to a vendor.
+- **OpenAI wire-format compatible.** Drop-in for `openai-python`, `openai-node`, LangChain, anything that takes a `base_url`. Same envelope as apfel; clients written for one work against the other unmodified.
+- **Single static Go binary.** `go install` and the binary runs. No Python venv, no Node, no Docker. Cross-compiles to darwin-arm64, darwin-amd64, linux-amd64, linux-arm64, windows-amd64.
+- **Invisible by default.** `--headless=new` plus no AppKit window plus no Dock icon. `FENSTER_CHROME_HEADED=1` surfaces Chrome for debugging.
+- **One shared Chrome per machine.** Lockfile-based supervisor means N `fenster --serve` processes attach to one Chrome; first one launches, others reuse.
+- **Fast warm path.** Sentinel session reuse plus pre-warm at server boot brings first-token latency from ~23s (cold `LanguageModel.create()`) to ~2s on subsequent prompts.
+- **GPU acceleration via Chrome.** Metal on macOS, DirectML on Windows, Vulkan on Linux. No CUDA, no ROCm, no per-OS driver setup.
+- **Explicit limits.** `fenster doctor` reports environment state. 501 responses for `/v1/embeddings` and legacy completions, not silent stubs.
+- **Stdlib-first Go.** ~10k LOC. No third-party HTTP router. No testify. No DI framework. Direct deps: `cobra`, `chromedp`, `golang.org/x/term`.
 
 ### Cons
 
-- **Chrome required, and not just any Chrome.** Stable does not expose `LanguageModel` (empirically). You need Canary 149+ today. The Origin Trial is moving target - Google could change the gate tomorrow and we would be chasing it.
-- **First boot is heavy.** ~2.4 GB Gemini Nano model download on first launch. Takes minutes on a fast connection. There is no way around this - the model lives inside Chrome.
-- **GPU floor.** ~4 GB VRAM minimum. CPU fallback works but needs ~16 GB RAM and is slow. ChromeOS Plus, Windows 10/11, macOS 13+, modern Linux desktops - that is the realistic target.
-- **~3B parameter model.** Gemini Nano is small. It is fast and on-device, but it is not GPT-4. Reasoning, math, and long context are not its strength. Use the right tool for the right job.
-- **Tool calling is faked.** Chrome's Prompt API does not expose OpenAI-shape tool calls. We map them to `responseConstraint` JSON-schema constraints and parse host-side. Robust but not native.
-- **No streaming embeddings, no fine-tune, no logit_bias.** What Chrome exposes is what you get. We do not lie about it.
-- **Origin-trial fragility.** Built-in AI is on a public Origin Trial. Future Chrome versions may change the gate, the API surface, or pull the rug. fenster will track upstream, but you are riding a moving train.
-- **CDP `userGesture:true` is a hack.** It works because Chrome accepts a synthesized user gesture from CDP for download triggers. Google could close that hole. The MV3 extension bridge is the fallback if/when that happens.
-- **The ~3B model is not great at long agentic loops.** Multi-tool, multi-step plans drift. For agent work where you need real reasoning, an OpenAI/Anthropic backend will out-think it. For local privacy-sensitive single-turn Q&A and structured-output tasks, Gemini Nano shines.
-- **Headless Chrome is a process to babysit.** It can crash, it can hang, it can fail to download the model. fenster supervises and restarts, but you are running an entire browser to talk to a 3B model. That is the trade.
+- **Chrome Canary 149+ required.** Stable Chrome does not expose `LanguageModel` even with `--enable-features=PromptAPIForGeminiNano` (empirically tested). The Built-in AI APIs are on a public Origin Trial; the gate can change between Chrome versions.
+- **First boot is heavy.** ~2.4 GB Gemini Nano model download on first launch. Minutes on a fast connection. The model lives inside Chrome's profile; nothing fenster can do to skip it.
+- **GPU floor.** ~4 GB VRAM minimum. CPU fallback needs ~16 GB RAM and is slow. Realistic target is ChromeOS Plus, Windows 10/11, macOS 13+, modern Linux desktops.
+- **~3B parameter model.** Gemini Nano is small. Reasoning, math, and long-context tasks are not its strength. Output quality is well below GPT-4-class models.
+- **Tool calling is shimmed.** Chrome's Prompt API does not expose OpenAI-shape tool calls. fenster maps them to `responseConstraint` JSON-schema constraints and parses host-side.
+- **No embeddings, no fine-tune, no `logit_bias`.** What Chrome exposes is the entire surface.
+- **Origin-trial fragility.** Future Chrome versions may change the API surface or pull the gate. fenster tracks upstream as it shifts.
+- **CDP `userGesture:true` is the trigger mechanism, not a guarantee.** Chrome accepts a synthesized user gesture from CDP for the download trigger today. The MV3 extension bridge is the documented fallback if that path closes.
+- **Multi-step agentic loops drift.** For agent work that needs stronger reasoning, a hosted frontier model is a better fit. fenster's fit is local privacy-sensitive single-turn Q&A and structured-output tasks.
+- **A whole browser to run a 3B model.** Headless Chrome can crash, hang, or fail to download the model. fenster supervises and restarts, but the process footprint is browser-sized.
 
-If you want the absolute fastest path to local LLM with a tighter binary size and full control of the model, [llama.cpp](https://github.com/ggerganov/llama.cpp) plus a model file is more honest. fenster's specific bet is: **the model is already on every Chrome user's machine; ship the bridge, not the weights.**
+For a smaller binary with full control of the model file, [llama.cpp](https://github.com/ggerganov/llama.cpp) is the alternative. fenster targets Chrome's bundled on-device model instead of shipping model weights.
 
-## Honest status (today, April 2026)
+## Status (today, April 2026)
 
 v0.0.1, **172 of 233 apfel integration tests pass** against fenster with the real Gemini Nano model running headless. All Go unit tests are green and race-clean.
 
@@ -293,26 +291,26 @@ v0.0.1, **172 of 233 apfel integration tests pass** against fenster with the rea
 
 Path to 100% lives in [docs/status.md](docs/status.md). Every remaining task is a [GitHub issue](https://github.com/Arthur-Ficial/fenster/issues).
 
-## The hacks worth reading the source for
+## Implementation notes
 
-If you came from Hacker News and want to know what is actually clever in the code:
+What is actually in the code, file by file:
 
-1. **Profile Local State bootstrap** ([internal/chrome/chrome.go](internal/chrome/chrome.go)). We write Chrome's `Local State` JSON file with `enabled_labs_experiments` set BEFORE Chrome ever runs. Chrome reads it on launch and the Built-in AI flags come up enabled, every time, no `--enable-features` flag soup, no manual `chrome://flags` toggling.
-2. **Real `http://127.0.0.1` origin requirement** ([internal/backend/chrome_cdp.go](internal/backend/chrome_cdp.go)). `about:blank` does not expose `LanguageModel`. We discovered this empirically. fenster's HTTP server doubles as the page Chrome navigates to so the API is exposed.
-3. **Synthesized user gesture over CDP**. `Runtime.evaluate {userGesture: true}` makes Chrome treat the call as if the user had clicked. `LanguageModel.create()` requires a user gesture for the download trigger; this is the cleanest way to give it one without an actual UI.
-4. **Sentinel session reuse**. We create one `LanguageModel` session at startup, stash it on `window.__fensterSentinel`, and call `.clone()` for every new request. `LanguageModel.create()` costs ~5-8s; `.clone()` costs ~50ms. This is the difference between "feels usable" and "feels broken".
-5. **Pre-warm goroutine** at server boot. The first prompt from a new client arrives at a server that has already paid the cold-start tax. `PreWarm()` fires `initOnce()` on a background goroutine.
-6. **Single shared Chrome lockfile** ([internal/chrome/shared.go](internal/chrome/shared.go)). `~/.fenster/run/chrome.json` + `flock(2)`. Twenty `fenster --serve` instances → one Chrome. No dialog floods.
-7. **MV3 extension shipped as fallback** ([extension/](extension/), [internal/nm/](internal/nm/)). Native Messaging framing (4-byte LE length prefix + UTF-8 JSON), service worker, manifest installer per OS. Wired but currently not the default path.
-8. **apfel-compat suite vendored verbatim** ([Tests/integration/](Tests/integration/)). 233 pytest tests, transport-agnostic, talk HTTP to localhost:11434. They were written for apfel's Swift server. fenster's Go server passes 172 of them today and is grinding toward 233.
+1. **Profile Local State bootstrap** ([internal/chrome/chrome.go](internal/chrome/chrome.go)). fenster writes Chrome's `Local State` JSON with `enabled_labs_experiments` set before Chrome launches. On boot Chrome reads it and the Built-in AI flags are enabled. No `--enable-features` flag string, no manual `chrome://flags` toggling.
+2. **Real `http://127.0.0.1` origin** ([internal/backend/chrome_cdp.go](internal/backend/chrome_cdp.go)). `about:blank` does not expose `LanguageModel`; the API requires a real http origin. fenster's HTTP server doubles as the page Chrome navigates to.
+3. **Synthesized user gesture over CDP**. `Runtime.evaluate {userGesture: true}` causes Chrome to treat the call as user-initiated. `LanguageModel.create()` requires a user gesture for the model-download trigger.
+4. **Sentinel session reuse**. One `LanguageModel` session is created at startup and stashed on `window.__fensterSentinel`; every request uses `.clone()`. `LanguageModel.create()` costs ~5-8s, `.clone()` costs ~50ms.
+5. **Pre-warm goroutine** at server boot. `PreWarm()` calls `initOnce()` on a background goroutine so the cold-start cost is paid before the first client request.
+6. **Single shared Chrome via lockfile** ([internal/chrome/shared.go](internal/chrome/shared.go)). `~/.fenster/run/chrome.json` plus `flock(2)`. Multiple `fenster --serve` instances attach to the same Chrome; first one launches, the rest reuse.
+7. **MV3 extension and Native Messaging host** ([extension/](extension/), [internal/nm/](internal/nm/)). Service worker, manifest with `nativeMessaging` permission, 4-byte LE length-prefix framing, per-OS manifest installer. Wired and tested. Not the default path; documented fallback for environments where the CDP `userGesture` path is blocked.
+8. **apfel pytest suite vendored** ([Tests/integration/](Tests/integration/)). 233 transport-agnostic tests written for apfel's Swift server, talking HTTP to `localhost:11434`. fenster's Go server passes 172 of them today.
 
 ## Architecture decisions you should know
 
-These are empirically proven, not aspirational:
+These behavior notes come from the current implementation and test matrix:
 
 1. **Chrome Canary 149+ is required.** Stable Chrome does not expose `LanguageModel` even with `--enable-features=PromptAPIForGeminiNano`. `fenster doctor` will guide you.
 2. **Headless mode works.** `--headless=new` plus a bootstrapped `Local State` plus a real `http://127.0.0.1` origin plus `userGesture:true` CDP `Runtime.evaluate` trips the model-download gate.
-3. **One shared Chrome per machine** via `~/.fenster/run/chrome.json` lockfile. Many `fenster --serve` instances attach to the same browser. No dialog floods.
+3. **One shared Chrome per machine** via `~/.fenster/run/chrome.json` lockfile. Many `fenster --serve` instances attach to the same browser.
 4. **Sentinel session reuse plus pre-warm at startup.** First request after `fenster --serve` returns in under 2 seconds because the cold `LanguageModel.create()` tax is paid in the background.
 5. **Ctrl-C semantics ported from apfel.** SIGINT at the chat prompt exits 130 with a terminal reset. SIGINT mid-response cancels the request and returns to the prompt.
 
@@ -349,5 +347,3 @@ See [the open issues](https://github.com/Arthur-Ficial/fenster/issues). Issues w
 ## License
 
 MIT. See `LICENSE`.
-
-> *"The model is already on every Chrome user's machine. Ship the bridge, not the weights."*
