@@ -21,6 +21,8 @@ Chrome ships a built-in LLM ([Gemini Nano](https://developer.chrome.com/docs/ai/
 
 Cross-platform sister of [apfel](https://github.com/Arthur-Ficial/apfel) (macOS-only, Apple Intelligence). Same wire format. Clients written for one work against the other.
 
+Real run transcript: [EXAMPLE.md](EXAMPLE.md) contains live Gemini Nano output generated through fenster's OpenAI-compatible HTTP server by [scripts/generate-examples.sh](scripts/generate-examples.sh).
+
 ## How it works
 
 ```
