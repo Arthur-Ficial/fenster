@@ -1,17 +1,17 @@
 # fenster — current status
 
-**Updated**: 2026-04-27 18:00 (post-security cluster, ANSI, chat flags, tool flattening)
+**Updated**: 2026-04-27 18:12 (post-chat-prompt-format, tool-flatten, stream+json)
 **Repo**: https://github.com/Arthur-Ficial/fenster
-**Latest commit**: `2b2e5d4`
+**Latest commit**: `974f105`
 
 ## Test scoreboard (most recent full run, real Gemini Nano headless)
 
 ```
-============= 62 failed, 169 passed, 2 errors in 410.34s (0:06:50) =============
+================== 61 failed, 172 passed in 369.13s (0:06:09) ==================
 ```
 
-**169/233 passed (72.5%).** Up from 151 in the prior run (+18). Runtime
-410s — security tests no longer time out, mcp_remote errors mostly cleared.
+**172/233 passed (73.8%).** Up from 169. Zero errors (mcp_remote cleared).
+Runtime 6:09 — fastest full run yet.
 
 Today's commit chain (each row = approximate +N):
 - 151 baseline

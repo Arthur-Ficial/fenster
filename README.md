@@ -84,7 +84,7 @@ A small **TUI chat** (`fenster --chat`) is a byproduct.
 
 ## Honest status
 
-**Today (April 2026):** v0.0.1, **169/233 (72.5%) of the apfel integration
+**Today (April 2026):** v0.0.1, **172/233 (73.8%) of the apfel integration
 test suite passes against fenster** with the real Gemini Nano model
 running headless. All Go unit tests are green and race-clean.
 
@@ -98,7 +98,8 @@ running headless. All Go unit tests are green and race-clean.
 | man-page lints | 142 | +3 |
 | footgun preflight + /health on loopback | 146 | +4 |
 | `--token-auto` + `--no-origin-check` + WWW-Auth | 151 | +5 |
-| ANSI under TTY + chat TUI + tool flatten | **169** | **+18** |
+| ANSI under TTY + chat TUI + tool flatten | 169 | +18 |
+| chat ` ai› ` + tool-msg flatten + --stream/--json | **172** | **+3** |
 
 Realistic path to 100%:
 - chat TUI completeness (arrow keys, JSON-mode, debug logs): ~17 more tests
