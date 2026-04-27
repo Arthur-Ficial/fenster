@@ -1,0 +1,124 @@
+.TH FENSTER 1 "April 2026" "fenster @VERSION@" "User Commands"
+.SH NAME
+fenster \- Chrome's on-device Gemini Nano, served as if it were OpenAI
+.SH SYNOPSIS
+.B fenster
+[\fIOPTIONS\fR] [\fIPROMPT\fR]
+.br
+.B fenster --serve
+[\fB--port\fR \fIPORT\fR] [\fB--mcp\fR \fIPATH\fR]
+.br
+.B fenster --chat
+.br
+.B fenster --version
+.SH DESCRIPTION
+.B fenster
+is the cross-platform sister of
+.BR apfel (1).
+It wraps Chrome's Prompt API (Gemini Nano) and exposes it as an
+OpenAI-compatible HTTP server on
+.B localhost:11434
+by default.
+
+Two modes are the product:
+
+.IP \(bu 4
+.B UNIX tool
+.RB ( fenster
+.IR PROMPT )
+\(em pipe-friendly, composable, JSON-capable.
+.IP \(bu 4
+.B OpenAI-compatible HTTP server
+.RB ( fenster\ --serve )
+\(em drop-in replacement for OpenAI's /v1/chat/completions endpoint.
+
+.B fenster --chat
+is a small TUI byproduct, useful for quickly testing prompts and MCP servers.
+
+.SH OPTIONS
+.TP
+.BR \-\-version
+Print version and build info, then exit.
+.TP
+.BR \-\-serve
+Run the OpenAI-compatible HTTP server (M3).
+.TP
+.BR \-\-port " " \fIPORT\fR
+Listen on the given port (default
+.BR 11434 ).
+.TP
+.BR \-\-mcp " " \fIPATH\fR
+Load an MCP server from the given path; tools are auto-executed in
+.BR \-\-serve
+mode.
+.TP
+.BR \-\-chat
+Interactive TUI chat (M4).
+.TP
+.BR \-\-stream
+Stream tokens to stdout.
+.TP
+.BR \-\-json
+Emit JSON envelope output for machine consumption.
+.TP
+.BR \-\-system " " \fITEXT\fR
+Override the default system prompt.
+.TP
+.BR \-\-no-system-prompt
+Disable the default system prompt entirely.
+.TP
+.BR \-\-quiet
+Suppress non-essential output.
+.TP
+.BR \-\-debug
+Verbose debug logging.
+
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Generic error.
+.TP
+.B 2
+Feature not yet implemented at this milestone.
+.TP
+.B 64
+Invalid arguments (sysexits EX_USAGE).
+
+.SH ENVIRONMENT
+.TP
+.B FENSTER_BROWSER
+Override Chrome auto-detection (path to chrome/chromium binary).
+.TP
+.B FENSTER_PROFILE
+Override the dedicated profile path (default
+.BR ~/.fenster/profile ).
+.TP
+.B NO_COLOR
+Disable ANSI colors in output.
+
+.SH FILES
+.TP
+.B ~/.fenster/profile
+Dedicated headless-Chrome user-data-directory (contains the Gemini Nano model).
+.TP
+.B ~/.fenster/extension
+Bundled MV3 Chrome extension (auto-extracted from the binary).
+.TP
+.B ~/.fenster/logs/fenster.log
+Structured logs.
+
+.SH PLATFORMS
+Desktop only: Windows 10/11, macOS 13+, Linux desktop, ChromeOS Plus.
+Requires Chrome 138+, GPU with >4 GB VRAM (or 16 GB RAM CPU fallback),
+and \(>= 22 GB free disk for the Gemini Nano model.
+
+.SH SEE ALSO
+.BR apfel (1),
+.BR ollama (1)
+
+The fenster project page:
+.UR https://github.com/Arthur-Ficial/fenster
+.UE

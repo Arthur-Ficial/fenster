@@ -1,0 +1,39 @@
+# Build artifacts
+bin/
+.build/
+dist/
+*.tar.gz
+*.deb
+
+# Go
+/go.work
+/go.work.sum
+/vendor/
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Python (used by Tests/integration/)
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Local config
+/.env
+/.env.local
+.claude/scheduled_tasks.lock
+.worktrees/
+
+# Release tooling temp
+/tmp-release/
+*.pid
