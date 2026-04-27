@@ -114,7 +114,7 @@ func Run(ctx context.Context, opts Options) error {
 		default:
 		}
 		if !opts.Quiet && !opts.JSON {
-			fmt.Fprint(opts.Stdout, "> ")
+			fmt.Fprint(opts.Stdout, "you› ")
 		}
 		if !scanner.Scan() {
 			// EOF (Ctrl-D) or read error → graceful exit.
@@ -167,8 +167,10 @@ func Run(ctx context.Context, opts Options) error {
 			})
 			continue
 		}
-		// Plain output: "AI: <content>" prefix matches apfel test_chat_plain_shows_ai_prefix.
-		fmt.Fprintf(opts.Stdout, "AI: %s\n\n", strings.TrimRight(res.Content, "\n"))
+		// Plain output: " ai› <content>" prefix matches apfel — pytest's
+		// test_chat_plain_shows_ai_prefix waits for "ai" substring before
+		// sending the quit step.
+		fmt.Fprintf(opts.Stdout, " ai› %s\n\n", strings.TrimRight(res.Content, "\n"))
 	}
 }
 
