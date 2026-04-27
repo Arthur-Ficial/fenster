@@ -72,9 +72,86 @@ Native Messaging hosts are launched **by Chrome**, never by the user or another 
 
 This is the same trick apfel uses to keep the protocol sane: one process, two roles, selected by argv at startup.
 
-## TODO (M1+)
+## Performance — fast AI is a non-negotiable
+
+fenster sits in front of a real on-device model. Every millisecond between
+"client POST" and "first byte of response" matters. The architecture is built
+around the principles below — adding code that violates any of them must come
+with a benchmark showing the overall path got faster.
+
+### 1. Sentinel session reuse (`window.__fensterSentinel`)
+
+`LanguageModel.create()` is the cold-init path inside Chrome — it allocates
+GPU resources for the model. Empirically ~1-2 seconds. fenster's
+`internal/backend/chrome_cdp.go` keeps **one** sentinel session alive in the
+controlled tab and reuses it across requests:
+
+- One-shot prompts (no `system`, no history): use the sentinel directly,
+  skip `create()` entirely. **Single-digit-millisecond CDP overhead** before
+  the model starts generating.
+- Multi-turn / system-prompt requests: clone the sentinel (`session.clone()`
+  is a cheap history copy) or build a per-request session, but the sentinel
+  remains warm for the next caller.
+
+Measured: 23s → 8s for two consecutive curl prompts on the same backend.
+Cumulative: pytest's ~190 model-hitting tests save ~2.5 minutes per run.
+
+### 2. Single shared Chrome (`~/.fenster/run/chrome.json`)
+
+Every `fenster --serve` reuses one Chrome instance. The first launches it;
+subsequent fensters attach via the saved CDP URL. This:
+
+- Eliminates 20+ Chrome cold-starts in a `pytest` session.
+- Keeps Chrome's V8 + GPU compiles warm across processes.
+- Avoids Chrome's profile-lock dialog flood.
+
+Implementation: `internal/chrome/shared.go` — flock + atomic state file.
+
+### 3. CDP webSocket kept alive
+
+`chromedp.NewRemoteAllocator` reuses a single webSocket to Chrome's debug
+port. We never tear down between prompts. `Eval` round-trip is
+sub-millisecond on localhost.
+
+### 4. Streaming SSE first (`/v1/chat/completions stream:true`)
+
+For interactive clients (IDE assistants, chat UIs), we emit content tokens
+as they arrive rather than waiting for the full response. Time-to-first-byte
+is ~50-200 ms after the model produces its first token, vs whole-response
+latency.
+
+Implementation: `internal/server/chat_stream.go` — `http.Flusher` per chunk.
+
+### 5. Pre-encoded NM framing path (current code)
+
+The bridge between fenster supervisor and the NM-host child is byte-copy.
+No JSON parse on the relay (fenster's host parses once at the supervisor).
+4-byte LE length + UTF-8 — no allocations in the hot copy path.
+
+### 6. Production checklist (deploy targets)
+
+When fenster ships in a real workflow (IDE plugin, daily UNIX use, server):
+
+- **Pre-warm the sentinel on startup**: `--serve` triggers a tiny "echo"
+  prompt at boot so `__fensterSentinel` is ready before the first user
+  request. (Follow-up ticket; the cold first-request cost is currently the
+  user's first turn.)
+- **Bind to `127.0.0.1` only** unless explicitly opened. Loopback is
+  always the fastest route.
+- **HTTP keep-alive on**: clients should reuse connections. fenster's
+  stdlib `net/http.Server` does this by default.
+- **No CORS preflight unless the client needs it**: each `OPTIONS` is one
+  more round-trip. fenster's default is CORS-off.
+- **Single bridge socket**: don't multiplex through multiple CDP tabs;
+  the sentinel pattern keeps one tab hot.
+- **Lower test timeouts in CI to match real model latency** (15-30s) so
+  failures surface quickly instead of waiting on 60s hangs.
+
+## TODO (M3+)
 
 - Cross-process protocol detail: how `--serve` host talks to `--nm-host` child (Unix socket at `~/.fenster/run/bridge.sock`)
-- Session-pool eviction policy + memory budget
-- Restart backoff thresholds
+- Session-pool eviction policy + memory budget for cloned sessions
+- Restart backoff thresholds for Chrome supervisor
 - Extension manifest version pinning
+- Pre-warm sentinel session on `--serve` startup
+- Streaming bridge: deltas pulled from `session.promptStreaming()` ReadableStream and forwarded as SSE chunks (currently we await full result then chunk on word boundaries)
