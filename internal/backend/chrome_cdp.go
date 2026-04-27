@@ -36,6 +36,21 @@ type ChromeCDPBackend struct {
 	ready      bool
 }
 
+// PreWarm fires a background sentinel-init so the first user request is
+// not cold. Fire-and-forget; errors are non-fatal — the next real request
+// will retry through ensureNavigated/initOnce.
+func (b *ChromeCDPBackend) PreWarm() {
+	go func() {
+		select {
+		case <-b.browserCtx.Done():
+			return
+		case <-time.After(3 * time.Second):
+		}
+		_ = b.ensureNavigated()
+		_ = b.initOnce(b.browserCtx)
+	}()
+}
+
 // ensureNavigated lazily navigates the controlled tab to targetURL once.
 func (b *ChromeCDPBackend) ensureNavigated() error {
 	b.mu.Lock()
