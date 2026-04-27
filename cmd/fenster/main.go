@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -155,8 +156,24 @@ Run 'fenster doctor' to verify your environment.`,
 
 	cmd.AddCommand(newDoctorCmd())
 	cmd.AddCommand(newVersionCmd())
+	cmd.AddCommand(newNMHostCmd())
+	cmd.AddCommand(newInstallExtensionCmd())
+	cmd.AddCommand(newInstallManifestCmd())
 
 	return cmd
+}
+
+func newNMHostCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:    "nm-host",
+		Short:  "internal: Native Messaging host invoked by Chrome",
+		Hidden: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer cancel()
+			return runNMHost(ctx)
+		},
+	}
 }
 
 func defaultPort() int {
@@ -217,11 +234,33 @@ func runDoctorMode(jsonOut bool) error {
 }
 
 func runServeMode(ctx context.Context, port int, mcp string, debug bool) error {
+	// Zero-touch setup: extract extension, write NM manifest, spawn Chrome.
+	autoChrome := os.Getenv("FENSTER_BACKEND") != "echo" && os.Getenv("FENSTER_BACKEND") != "null" && os.Getenv("FENSTER_NO_CHROME") == ""
+	if autoChrome {
+		_, extID, err := ensureExtensionAndManifest()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "fenster: extension/manifest setup failed:", err)
+		} else if debug {
+			fmt.Fprintln(os.Stderr, "fenster: extension ID =", extID)
+		}
+	}
+
 	be, err := chooseBackend(ctx, debug)
 	if err != nil {
 		return err
 	}
 	defer be.Close()
+
+	if autoChrome {
+		home, _ := os.UserHomeDir()
+		extDir := filepath.Join(home, ".fenster", "extension")
+		if br, err := autoLaunchChrome(ctx, extDir, debug); err != nil {
+			fmt.Fprintln(os.Stderr, "fenster: could not launch Chrome:", err)
+			fmt.Fprintln(os.Stderr, "fenster: server still up; install extension manually to enable real model")
+		} else {
+			defer br.Close()
+		}
+	}
 	addr := "127.0.0.1:" + strconv.Itoa(port)
 	if v := envFlag("FENSTER_HOST", "APFEL_HOST"); v != "" {
 		addr = v + ":" + strconv.Itoa(port)
@@ -269,15 +308,36 @@ func runChatMode(ctx context.Context) error {
 	return &exitError{code: exitNotImpl, msg: "chat mode not implemented"}
 }
 
-// chooseBackend picks the right Backend for non-server modes. Until the
-// Chrome bridge lands we use EchoBackend so the UNIX tool is testable
-// today; the Chrome backend will be wired here next.
+// chooseBackend picks the Backend for the runtime. Selection rules:
+//
+//   - FENSTER_BACKEND=echo   -> EchoBackend (deterministic, test-friendly)
+//   - FENSTER_BACKEND=null   -> NullBackend (always reports unavailable)
+//   - default                -> ChromeBackend listening on the bridge socket;
+//                              falls back to Echo if the socket can't be opened
 func chooseBackend(ctx context.Context, debug bool) (backend.Backend, error) {
 	_ = ctx
-	if debug {
-		fmt.Fprintln(os.Stderr, "fenster: using EchoBackend (Chrome bridge wires next)")
+	switch os.Getenv("FENSTER_BACKEND") {
+	case "echo":
+		if debug {
+			fmt.Fprintln(os.Stderr, "fenster: using EchoBackend (FENSTER_BACKEND=echo)")
+		}
+		return backend.EchoBackend{}, nil
+	case "null":
+		if debug {
+			fmt.Fprintln(os.Stderr, "fenster: using NullBackend (FENSTER_BACKEND=null)")
+		}
+		return backend.NullBackend{}, nil
 	}
-	return backend.EchoBackend{}, nil
+	cb, err := backend.NewChromeBackend(defaultBridgeSock())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "fenster: cannot start ChromeBackend:", err)
+		fmt.Fprintln(os.Stderr, "fenster: falling back to EchoBackend (set FENSTER_BACKEND=echo to silence this)")
+		return backend.EchoBackend{}, nil
+	}
+	if debug {
+		fmt.Fprintln(os.Stderr, "fenster: ChromeBackend listening at", defaultBridgeSock())
+	}
+	return cb, nil
 }
 
 func printVersion(jsonOut bool) {

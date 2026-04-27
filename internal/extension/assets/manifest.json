@@ -4,6 +4,7 @@
   "version": "0.0.1",
   "description": "Bridges Chrome's Prompt API (Gemini Nano) to a local Native Messaging host so fenster can serve OpenAI-compatible HTTP.",
   "permissions": ["nativeMessaging"],
+  "host_permissions": [],
   "background": {
     "service_worker": "service-worker.js",
     "type": "module"
