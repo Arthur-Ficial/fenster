@@ -23,7 +23,7 @@ BINARY = ROOT / "bin" / "fenster"
 MAN_PAGE = ROOT / ".build" / "release" / "fenster.1"
 MAN_SOURCE = ROOT / "man" / "fenster.1.in"
 VERSION_FILE = ROOT / ".version"
-MAIN_SWIFT = ROOT / "Sources" / "main.swift"
+MAIN_SWIFT = ROOT / "cmd" / "fenster" / "main.go"
 EXIT_CODES_SWIFT = ROOT / "cmd" / "fenster" / "main.go"
 
 FLAG_RE = re.compile(r"(--[a-z][a-z0-9-]+)")
