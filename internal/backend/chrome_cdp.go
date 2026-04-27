@@ -285,13 +285,39 @@ func splitMessages(msgs []wire.Message) (system, last string, history []map[stri
 				system += "\n"
 			}
 			system += c
-		case "user", "assistant":
-			history = append(history, map[string]string{"role": m.Role, "content": c})
+		case "user":
+			history = append(history, map[string]string{"role": "user", "content": c})
+		case "assistant":
+			// assistant.tool_calls → text summary so the model sees the
+			// turn (LanguageModel has no native tool-call role).
+			if len(m.ToolCalls) > 0 {
+				var parts []string
+				for _, tc := range m.ToolCalls {
+					parts = append(parts, fmt.Sprintf("called %s(%s)", tc.Function.Name, tc.Function.Arguments))
+				}
+				history = append(history, map[string]string{
+					"role":    "assistant",
+					"content": "[tool calls: " + strings.Join(parts, "; ") + "]",
+				})
+			} else {
+				history = append(history, map[string]string{"role": "assistant", "content": c})
+			}
+		case "tool":
+			// tool result → synthetic user turn so the model summarizes it.
+			toolText := fmt.Sprintf("[tool '%s' returned: %s]", m.Name, c)
+			if m.Name == "" && m.ToolCallID != "" {
+				toolText = fmt.Sprintf("[tool result for %s: %s]", m.ToolCallID, c)
+			}
+			history = append(history, map[string]string{"role": "user", "content": toolText})
 		}
 	}
 	if len(history) > 0 && history[len(history)-1]["role"] == "user" {
 		last = history[len(history)-1]["content"]
 		history = history[:len(history)-1]
+	} else {
+		// No trailing user turn — synthesize one so prompt() has something
+		// to feed the model. (Apfel hits the same edge case.)
+		last = "Continue."
 	}
 	return
 }
