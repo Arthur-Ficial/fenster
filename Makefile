@@ -196,7 +196,45 @@ lint: vet
 	fi
 
 vendor-tests:
-	@bash scripts/port-apfel-tests.sh
+	@echo "vendor-tests: archived. The apfel test suite was ported once and is now"
+	@echo "fenster's own (Tests/integration/). See scripts/_port-apfel-tests.sh.archived."
+	@exit 1
+
+# --- Fast development loop ---
+# `make test-fast` runs Go unit tests + model-free pytest only. Completes
+# in <30s. Use this in your edit/build/test cycle.
+#
+# Model-hitting integration tests (~190) take ~5 min because each prompt
+# is a real Gemini Nano inference on the M2 GPU. Run `make test` for that.
+test-fast: build vet
+	@echo ""
+	@echo "=== Go unit tests (race) ==="
+	go test -race ./...
+	@echo ""
+	@echo "=== Model-free integration tests ==="
+	@if [ ! -f Tests/integration/conftest.py ]; then \
+		echo "warning: Tests/integration/ not present"; \
+		exit 0; \
+	fi
+	@if ! command -v python3 >/dev/null 2>&1; then \
+		echo "error: python3 required for Tests/integration/"; exit 1; \
+	fi
+	@pkill -f "$(BIN_DIR)/$(BINARY) --serve" 2>/dev/null || true
+	@sleep 1
+	@FENSTER_BACKEND=echo $(BIN_DIR)/$(BINARY) --serve --port 11434 2>/dev/null & echo $$! > /tmp/fenster-fast-server.pid; \
+	FENSTER_BACKEND=echo $(BIN_DIR)/$(BINARY) --serve --port 11435 --mcp mcp/calculator/server.py 2>/dev/null & echo $$! > /tmp/fenster-fast-mcp.pid; \
+	for i in $$(seq 1 10); do curl -sf http://localhost:11434/health >/dev/null 2>&1 && break; sleep 1; done; \
+	python3 -m pytest Tests/integration/ \
+		--ignore=Tests/integration/test_chat.py \
+		--ignore=Tests/integration/openai_client_test.py \
+		--ignore=Tests/integration/mcp_server_test.py \
+		--ignore=Tests/integration/mcp_remote_test.py \
+		--ignore=Tests/integration/performance_test.py \
+		-q --tb=no --no-header --timeout=15 -p no:cacheprovider; \
+	STATUS=$$?; \
+	kill $$(cat /tmp/fenster-fast-server.pid) $$(cat /tmp/fenster-fast-mcp.pid) 2>/dev/null || true; \
+	rm -f /tmp/fenster-fast-server.pid /tmp/fenster-fast-mcp.pid; \
+	exit $$STATUS
 
 # --- Pre-release qualification ---
 
