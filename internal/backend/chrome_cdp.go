@@ -70,68 +70,84 @@ func NewChromeCDPBackend(browserCtx context.Context, targetURL string) (*ChromeC
 	return &ChromeCDPBackend{browserCtx: browserCtx, targetURL: targetURL}, nil
 }
 
-// initOnce ensures LanguageModel is "available". When the model is in a
-// "downloadable"/"downloading" state, fenster triggers the download via a
-// synthetic user-gesture click + LanguageModel.create(), then polls until
-// the model is ready. The first call may take ~5 minutes on a fresh
-// profile (Component Updater pulls ~2.4 GB).
+// initOnce ensures LanguageModel is "available". When in "downloadable"/
+// "downloading" state, fenster triggers a download by calling
+// LanguageModel.create() with userGesture:true on the CDP Runtime.evaluate
+// — Chrome accepts that as a real user activation, satisfying the gate.
+//
+// The download takes ~5 minutes on a fresh profile (Component Updater
+// pulls ~2.4 GB). Subsequent calls reuse the cached model.
 func (b *ChromeCDPBackend) initOnce(ctx context.Context) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.ready {
 		return nil
 	}
-	// Wire a button into the page that the synthetic click will fire from.
-	// LanguageModel.create() inside its handler passes Chrome's user-gesture
-	// gate and triggers the download.
+	// Quick check: maybe the model is already available.
+	var avail string
 	if err := chromedp.Run(b.browserCtx, chromedp.Evaluate(`(async()=>{
-		if (typeof LanguageModel === 'undefined') return 'no-api';
-		const avail = await LanguageModel.availability();
-		if (avail === 'available') return 'available';
-		if (avail === 'unavailable' || avail === 'no') return 'unavailable';
-		// Wire the download trigger.
-		if (!document.getElementById('__fenster_dl')) {
-			const b = document.createElement('button');
-			b.id = '__fenster_dl';
-			b.textContent = 'fenster-init';
-			document.body.appendChild(b);
-			window.__fensterCreated = false;
-			b.addEventListener('click', async () => {
-				try {
-					const session = await LanguageModel.create({
-						monitor(m){m.addEventListener('downloadprogress', e => { window.__fensterProgress = e.loaded; });},
-					});
-					try { session.destroy?.(); } catch(_) {}
-					window.__fensterCreated = true;
-				} catch (e) {
-					window.__fensterCreateErr = String(e);
-				}
-			});
-		}
-		return 'wired';
-	})()`, nil, withAwait)); err != nil {
+		if(typeof LanguageModel==='undefined')return 'no-api';
+		return await LanguageModel.availability();
+	})()`, &avail, withAwait)); err != nil {
 		return err
 	}
-	// Synthesize a trusted click via CDP.
-	if err := chromedp.Run(b.browserCtx,
-		chromedp.MouseClickXY(50, 50),
-	); err != nil {
-		return fmt.Errorf("chrome cdp: synth click: %w", err)
+	if avail == "available" {
+		b.ready = true
+		return nil
 	}
-	// Poll availability for up to 15 minutes.
+	if avail == "no-api" {
+		return errors.New("chrome cdp: LanguageModel undefined (wrong Chrome channel or origin)")
+	}
+	if avail == "unavailable" || avail == "no" {
+		return errors.New("chrome cdp: model unavailable on this device")
+	}
+	// Trigger download with userGesture=true so Chrome accepts our
+	// synthetic invocation as a user activation.
+	var dlResult string
+	if err := chromedp.Run(b.browserCtx, chromedp.ActionFunc(func(c context.Context) error {
+		js := `(async()=>{
+			try{
+				const session = await LanguageModel.create({
+					monitor(m){m.addEventListener('downloadprogress', e=>{window.__fensterProgress=e.loaded;});},
+				});
+				try{session.destroy?.();}catch(_){}
+				return 'started';
+			}catch(e){return 'err:'+String(e);}
+		})()`
+		res, ex, err := cdpruntime.Evaluate(js).
+			WithAwaitPromise(true).
+			WithReturnByValue(true).
+			WithUserGesture(true).
+			Do(c)
+		if err != nil {
+			return err
+		}
+		if ex != nil {
+			return fmt.Errorf("chrome cdp: trigger ex: %s", ex.Text)
+		}
+		_ = json.Unmarshal(res.Value, &dlResult)
+		return nil
+	})); err != nil {
+		return err
+	}
+	if strings.HasPrefix(dlResult, "err:") {
+		return errors.New("chrome cdp: download trigger: " + dlResult)
+	}
+	// Poll for "available" up to 15 minutes.
 	deadline := time.Now().Add(15 * time.Minute)
+	last := ""
 	for {
 		if time.Now().After(deadline) {
-			return errors.New("chrome cdp: timed out waiting for model download")
+			return errors.New("chrome cdp: timed out waiting for model download (last status: " + last + ")")
 		}
 		var raw string
 		if err := chromedp.Run(b.browserCtx, chromedp.Evaluate(`(async()=>JSON.stringify({
 			avail: await LanguageModel.availability(),
 			progress: window.__fensterProgress || 0,
-			err: window.__fensterCreateErr || ''
 		}))()`, &raw, withAwait)); err != nil {
 			return err
 		}
+		last = raw
 		if strings.Contains(raw, `"available"`) {
 			b.ready = true
 			return nil
@@ -142,7 +158,7 @@ func (b *ChromeCDPBackend) initOnce(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(3 * time.Second):
+		case <-time.After(5 * time.Second):
 		}
 	}
 }
