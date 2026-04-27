@@ -35,6 +35,7 @@ import (
 	"github.com/Arthur-Ficial/fenster/internal/oneshot"
 	"github.com/Arthur-Ficial/fenster/internal/server"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 // Exit codes — keep stable; apfel pytest asserts on them.
@@ -231,7 +232,7 @@ Run 'fenster doctor' to verify your environment.`,
 
 	// Customize help so it includes "USAGE:" (apfel convention) and
 	// preserves cobra's tree under it.
-	cmd.SetUsageTemplate(apfelUsageTemplate)
+	cmd.SetUsageTemplate(usageTemplateFor())
 	// Map cobra's flag-parse errors (exit 1 default) to apfel's exit 2
 	// + "unknown option" wording.
 	cmd.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
@@ -244,6 +245,38 @@ Run 'fenster doctor' to verify your environment.`,
 
 	return cmd
 }
+
+// usageTemplateFor returns the colored or plain template depending on the
+// caller's environment. ANSI on when stdout is a TTY and NO_COLOR is unset.
+func usageTemplateFor() string {
+	if term.IsTerminal(int(os.Stdout.Fd())) && os.Getenv("NO_COLOR") == "" {
+		return apfelUsageTemplateColor
+	}
+	return apfelUsageTemplate
+}
+
+// apfelUsageTemplateColor is the same as apfelUsageTemplate but the section
+// headers (USAGE:, COMMANDS:, OPTIONS:, ...) are emitted bold via ANSI.
+// pytest test_help_uses_ansi_under_tty checks for any ANSI escape; bold is
+// the most readable choice that still satisfies the assertion.
+const apfelUsageTemplateColor = "\x1b[1mUSAGE:\x1b[0m\n" + `  {{.UseLine}}{{if .HasAvailableSubCommands}} [command]{{end}}{{if gt (len .Aliases) 0}}
+
+` + "\x1b[1mALIASES:\x1b[0m\n" + `  {{.NameAndAliases}}{{end}}{{if .HasExample}}
+
+` + "\x1b[1mEXAMPLES:\x1b[0m\n" + `{{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}
+
+` + "\x1b[1mCOMMANDS:\x1b[0m" + `{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+` + "\x1b[1mOPTIONS:\x1b[0m\n" + `{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+` + "\x1b[1mINHERITED OPTIONS:\x1b[0m\n" + `{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+` + "\x1b[1mADDITIONAL HELP TOPICS:\x1b[0m" + `{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
+`
 
 // apfelUsageTemplate makes cobra emit "USAGE:" (uppercase) and roughly
 // matches apfel's --help layout while keeping cobra's command tree.
