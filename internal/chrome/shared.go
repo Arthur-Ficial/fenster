@@ -141,8 +141,14 @@ func EnsureSharedChrome(ctx context.Context, opts LaunchOptions) (cdpURL string,
 		"--no-first-run",
 		"--no-default-browser-check",
 		"--enable-features=PromptAPIForGeminiNano,OptimizationGuideOnDeviceModel,OptimizationGuideOnDeviceModelBypassPerfRequirement,AIPromptAPI,AIRewriterAPI,AISummarizationAPI",
-		"about:blank",
 	}
+	// Headless is the default — operators don't want a Chrome window
+	// flashing onto their desktop every time fenster --serve runs.
+	// FENSTER_CHROME_HEADED=1 surfaces the window for debugging.
+	if os.Getenv("FENSTER_CHROME_HEADED") != "1" {
+		args = append(args, "--headless=new")
+	}
+	args = append(args, "about:blank")
 	cmd := exec.Command(binary, args...)
 	// Detach: we don't want our process tree death to bring Chrome down,
 	// AND we don't want Chrome's stdout/stderr noise in our logs.
