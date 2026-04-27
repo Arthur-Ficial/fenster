@@ -60,7 +60,11 @@ func Run(ctx context.Context, opts Options) error {
 	}
 	req := buildRequest(opts.System, prompt, opts.Stream)
 
-	if opts.Stream {
+	// --json overrides --stream: collect the full response and emit one
+	// JSON envelope. Apfel pytest's test_stdin_with_stream_flag and
+	// test_stdin_only_with_stream_flag use `-o json --stream` and
+	// json.loads() the entire stdout as a single object.
+	if opts.Stream && !opts.JSON {
 		return runStream(ctx, opts, req)
 	}
 	return runOnce(ctx, opts, req)
