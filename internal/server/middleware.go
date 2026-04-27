@@ -61,6 +61,7 @@ func withBearerAuth(cfg Config, next http.Handler) http.Handler {
 		auth := r.Header.Get("Authorization")
 		const prefix = "Bearer "
 		if !strings.HasPrefix(auth, prefix) || strings.TrimPrefix(auth, prefix) != cfg.BearerToken {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="fenster"`)
 			writeError(w, "missing or invalid bearer token", cerr.Authentication)
 			return
 		}

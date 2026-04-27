@@ -342,8 +342,18 @@ func runServeModeFull(ctx context.Context, sf serveFlags) error {
 	if err != nil {
 		return fmt.Errorf("listen %s: %w", addr, err)
 	}
-	if !cfg.Debug {
-		fmt.Fprintf(os.Stderr, "fenster %s — listening on http://%s/v1\n", buildinfo.Version, addr)
+	// Apfel-style startup banner. The token field reports presence, not the
+	// secret, so logs/test_explicit_token_not_echoed_in_startup_banner passes.
+	tokenStatus := "open"
+	if cfg.BearerToken != "" {
+		tokenStatus = "required"
+	}
+	fmt.Fprintf(os.Stderr, "fenster %s — listening on http://%s/v1\n", buildinfo.Version, addr)
+	fmt.Fprintf(os.Stderr, "  token:    %s\n", tokenStatus)
+	fmt.Fprintf(os.Stderr, "  origin:   %s\n", originSummary(cfg.AllowedOrigins, cfg.Footgun))
+	fmt.Fprintf(os.Stderr, "  cors:     %t\n", cfg.EnableCORS)
+	if cfg.Debug {
+		fmt.Fprintln(os.Stderr, "  debug:    on (logs at /v1/logs, /v1/logs/stats)")
 	}
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.Serve(ln) }()

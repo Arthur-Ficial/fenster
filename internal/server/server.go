@@ -55,6 +55,14 @@ func NewMux(cfg Config) http.Handler {
 	mux.HandleFunc("POST /v1/completions", handleNotImplemented("legacy completions"))
 	mux.HandleFunc("POST /v1/embeddings", handleNotImplemented("embeddings"))
 
+	// Debug endpoints — only registered when Debug is on.
+	var logStore *LogStore
+	if cfg.Debug {
+		logStore = NewLogStore(1024)
+		mux.HandleFunc("GET /v1/logs", handleLogsList(logStore))
+		mux.HandleFunc("GET /v1/logs/stats", handleLogsStats(logStore))
+	}
+
 	// CORS preflight on every relevant route.
 	mux.HandleFunc("OPTIONS /v1/chat/completions", handleCORS(cfg))
 	mux.HandleFunc("OPTIONS /v1/completions", handleCORS(cfg))
@@ -62,10 +70,13 @@ func NewMux(cfg Config) http.Handler {
 	mux.HandleFunc("OPTIONS /v1/models", handleCORS(cfg))
 	mux.HandleFunc("OPTIONS /health", handleCORS(cfg))
 
-	// Middleware chain (innermost → outermost): mux → originCheck → bearerAuth → corsResponse.
+	// Middleware chain (innermost → outermost): mux → originCheck → bearerAuth → corsResponse → logging.
 	var h http.Handler = mux
 	h = withBearerAuth(cfg, h)
 	h = withOriginCheck(cfg, h)
 	h = withCORSResponse(cfg, h)
+	if logStore != nil {
+		h = withLogging(logStore, h)
+	}
 	return h
 }
