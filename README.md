@@ -21,6 +21,31 @@ Chrome ships a built-in LLM via [Gemini Nano](https://developer.chrome.com/docs/
 
 Cross-platform sister of [apfel](https://github.com/Arthur-Ficial/apfel). Wire-format compatible. Works on Windows, macOS, Linux, ChromeOS.
 
+## How it works
+
+```
+                ┌──────────────────────────────────────┐
+                │  fenster (Go daemon)                 │
+                │  ┌──────────┐    ┌────────────────┐  │
+HTTP client ───>│  │ HTTP/SSE │<──>│ Chrome (CDP)   │  │
+(curl, IDE)     │  │ :11434   │    │ headless       │  │
+                │  └──────────┘    └───────┬────────┘  │
+                └──────────────────────────┼───────────┘
+                                           │ spawn (one shared)
+                                           v
+                ┌──────────────────────────────────────┐
+                │  Headless Chrome Canary 149+         │
+                │  ┌────────────────┐                  │
+                │  │ LanguageModel  │                  │
+                │  │  (Prompt API)  │                  │
+                │  └───────┬────────┘                  │
+                │          v                           │
+                │   Gemini Nano (~3B)                  │
+                └──────────────────────────────────────┘
+```
+
+The Chrome that fenster spawns is invisible. AppKit reports zero windows. `FENSTER_CHROME_HEADED=1` surfaces it for debugging.
+
 ## Requirements & Install
 
 Chrome 138+, GPU with >4 GB VRAM (or 16 GB RAM CPU fallback), 22 GB free disk. Building from source needs Go 1.22+.
@@ -106,33 +131,6 @@ fenster --chat --debug                                # debug output to stderr
 ```
 
 Ctrl-C exits. Type `quit` or hit Ctrl-D to exit cleanly.
-
-## What just happened on your machine
-
-When you run `fenster --serve`:
-
-```
-                ┌──────────────────────────────────────┐
-                │  fenster (Go daemon)                 │
-                │  ┌──────────┐    ┌────────────────┐  │
-HTTP client ───>│  │ HTTP/SSE │<──>│ Chrome (CDP)   │  │
-(curl, IDE)     │  │ :11434   │    │ headless       │  │
-                │  └──────────┘    └───────┬────────┘  │
-                └──────────────────────────┼───────────┘
-                                           │ spawn (one shared)
-                                           v
-                ┌──────────────────────────────────────┐
-                │  Headless Chrome Canary 149+         │
-                │  ┌────────────────┐                  │
-                │  │ LanguageModel  │                  │
-                │  │  (Prompt API)  │                  │
-                │  └───────┬────────┘                  │
-                │          v                           │
-                │   Gemini Nano (~3B)                  │
-                └──────────────────────────────────────┘
-```
-
-The Chrome that fenster spawns is invisible. AppKit reports zero windows. Set `FENSTER_CHROME_HEADED=1` to surface it for debugging.
 
 ## Honest status (today, April 2026)
 
