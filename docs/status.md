@@ -1,8 +1,52 @@
 # fenster — current status
 
-**Updated**: 2026-04-27 16:14 (end-of-day snapshot, autonomous session)
+**Updated**: 2026-04-27 17:45 (post-perf, post-chat-TUI, post-`make test-fast`)
 **Repo**: https://github.com/Arthur-Ficial/fenster
-**Latest commit**: `cf170b3`
+**Latest commit**: see `git log -1`
+
+## Test scoreboard (most recent full run, real Gemini Nano headless)
+
+```
+============= 76 failed, 151 passed, 6 errors in 460.32s (0:07:40) =============
+```
+
+**151/233 passed (65%).** Up from 146 (+5 from chat TUI build).
+
+Total wall-clock 7:40 — dominated by **15 tests hitting their 20s pytest
+timeout** (`pytest --timeout=20`):
+
+```
+20.09s test_tool_round_trip_tool_last (openai_client)
+20.06s test_json_mode (openai_client)
+20.01s test_refusal_wire_shape_if_triggered (openai_client)
+20.01s test_omitted_max_tokens_non_streaming_returns_200 (openai_client)
+20.01s test_health_requires_auth_on_non_loopback_token_protected_bind (security)
+20.01s test_unreachable_mcp_url_fails_gracefully (mcp_remote)
+20.01s test_chat_plain_shows_ai_prefix (test_chat)
+20.01s test_chat_debug_shows_output (test_chat)
+20.01s test_chat_debug_shows_response_info (test_chat)
+20.00s test_chat_mcp_can_execute_tool (test_chat)
+20.00s test_chat_mcp_tool_log_on_stderr (test_chat)
+20.00s test_token_auto_prints_generated_secret (security)
+20.00s test_auth_mcp_apfel_healthy (mcp_remote setup)
+20.00s test_cors_preflight_echoes_requested_headers (security)
+20.00s test_remote_mcp_multiply_finish_reason (mcp_remote setup)
+```
+
+**These are failures hitting timeout, not slow successes.** Real model
+prompts (when they succeed) come back in 1-3s. The 7:40 → 5:10 budget
+becomes available the moment we fix the underlying timeouts.
+
+Per-file breakdown (76 fails):
+- test_chat: ~17 (PTY tests)
+- cli_e2e: ~22 (text-matching, system+stream, stdin combos)
+- mcp_remote: ~6 fails + 6 errors (HTTP MCP server issues)
+- mcp_server: ~10 (host-side MCP execution)
+- openai_client: 4 (tool calls, JSON mode, refusal, max_tokens)
+- security: 4 (token-auto banner, non-loopback /health, CORS preflight echo)
+- openapi_spec/conformance: 3
+- test_man_page: 5
+- test_build_info: 1, performance: 1
 
 ## Headline
 
